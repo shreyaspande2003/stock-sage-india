@@ -1,0 +1,33 @@
+{
+  "name": "stock-sage-india",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"node server/index.cjs\" \"vite\"",
+    "dev:client": "vite",
+    "dev:server": "node server/index.cjs",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "NODE_ENV=production node server/index.cjs"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "vite": "^8.3.0"
+  },
+  "dependencies": {
+    "concurrently": "^10.0.5",
+    "cors": "^2.8.6",
+    "csv-parse": "^7.0.2",
+    "dotenv": "^18.0.3",
+    "express": "^5.2.1",
+    "lightweight-charts": "^5.2.1",
+    "multer": "^2.4.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "recharts": "^3.10.1",
+    "technicalindicators": "^3.1.0",
+    "xml2js": "^0.6.2",
+    "yahoo-finance2": "^4.0.2"
+  }
+}
