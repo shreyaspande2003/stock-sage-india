@@ -2,7 +2,7 @@
 const cache = require('../utils/cache.cjs');
 const { limiters } = require('../utils/rateLimiter.cjs');
 const YahooFinance = require('yahoo-finance2').default;
-const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey', 'ripHistorical'] });
 
 // Suppress unhandled notices from yahoo-finance2 (removed)
 
