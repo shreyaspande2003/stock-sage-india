@@ -1,0 +1,44 @@
+{
+  "universe": {
+    "min_avg_traded_value_cr": 5,
+    "min_price": 50,
+    "min_history_days": 250,
+    "exclude_asm_gsm": true,
+    "exclude_t2t": true,
+    "skip_days_before_results": 3,
+    "max_circuit_days_in_5": 1
+  },
+  "regime": {
+    "risk_on_min": 3,
+    "risk_off_max": -2,
+    "entries_allowed": { "RISK_ON": 5, "NEUTRAL": 3, "RISK_OFF": 0 },
+    "min_score_add": { "RISK_ON": 0, "NEUTRAL": 5, "RISK_OFF": 20 }
+  },
+  "scoring": {
+    "weights": { "trend": 25, "rs": 20, "mom": 15, "vol": 15, "struct": 15, "vc": 10 },
+    "min_score": 65,
+    "reject_if_extended_pct_over_ema50": 12
+  },
+  "risk": {
+    "risk_pct_per_trade": { "swing": 0.5, "trend": 0.5 },
+    "regime_mult": { "RISK_ON": 1.0, "NEUTRAL": 0.5, "RISK_OFF": 0.25 },
+    "max_position_pct_capital": 15,
+    "max_portfolio_heat_pct": 4,
+    "max_positions": { "swing": 8, "trend": 4 },
+    "max_per_sector": 2,
+    "min_rr_t1": 1.5,
+    "stop_atr_mult": { "BREAKOUT": 1.6, "PULLBACK": 1.8, "CONTINUATION": 1.8, "MEAN_REVERSION": 1.4, "TREND_RIDE": 3.0 },
+    "min_stop_atr": 0.8,
+    "time_stop_days": 10
+  },
+  "costs": {
+    "slippage_pct_per_side": 0.15,
+    "stt_delivery_pct": 0.1
+  },
+  "llm": {
+    "shortlist_size": 30,
+    "max_debate_rounds": 1,
+    "cache_fundamentals_days": 7,
+    "cache_news_hours": 24
+  }
+}

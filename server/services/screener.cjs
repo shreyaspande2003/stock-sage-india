@@ -5,14 +5,22 @@ const { buildSwingPlaybook } = require('./swingEngine.cjs');
 const { mapPool } = require('../utils/pool.cjs');
 const cache = require('../utils/cache.cjs');
 
-const UNIVERSE = [
-  // Large Caps (Stable)
-  'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK', 'HINDUNILVR', 'ITC', 'SBIN',
-  'BHARTIARTL', 'BAJFINANCE', 'LT', 'TATAMOTORS', 'M&M', 'SUNPHARMA',
-  // High-Beta Mid/Small Caps (Quick Movers)
-  'ZOMATO', 'IREDA', 'IRFC', 'JIOFIN', 'SUZLON', 'RVNL', 'HAL', 'BEL',
-  'TRENT', 'DIXON', 'POLYCAB', 'KPITTECH', 'ANGELONE', 'BSE', 'CDSL'
-];
+const { getTradableUniverse } = require('./universeFilter.cjs');
+
+function getActiveUniverse() {
+  try {
+    const dbUniverse = getTradableUniverse();
+    if (dbUniverse && dbUniverse.length >= 5) {
+      return dbUniverse;
+    }
+  } catch (e) {}
+  return [
+    'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK', 'HINDUNILVR', 'ITC', 'SBIN',
+    'BHARTIARTL', 'BAJFINANCE', 'LT', 'M&M', 'SUNPHARMA',
+    'IREDA', 'IRFC', 'JIOFIN', 'SUZLON', 'RVNL', 'HAL', 'BEL',
+    'TRENT', 'DIXON', 'POLYCAB', 'KPITTECH', 'ANGELONE', 'BSE', 'CDSL'
+  ];
+}
 
 async function scoreSymbol(symbol) {
   const [quote, historical] = await Promise.all([
@@ -49,7 +57,8 @@ async function scanSwingUniverse() {
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
-  const rows = await mapPool(UNIVERSE, 3, async (symbol) => {
+  const universe = getActiveUniverse();
+  const rows = await mapPool(universe, 3, async (symbol) => {
     try {
       return await scoreSymbol(symbol);
     } catch (err) {
@@ -77,4 +86,4 @@ async function scanSwingUniverse() {
   return result;
 }
 
-module.exports = { scanSwingUniverse, UNIVERSE };
+module.exports = { scanSwingUniverse, getActiveUniverse };

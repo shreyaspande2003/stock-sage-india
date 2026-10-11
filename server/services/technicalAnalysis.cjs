@@ -355,4 +355,8 @@ function last(arr) {
   return arr && arr.length > 0 ? arr[arr.length - 1] : null;
 }
 
-module.exports = { calculateIndicators };
+module.exports = { 
+  calculateIndicators, 
+  calculateTechnicalScoreV2, 
+  analyzeTechnicals: calculateIndicators 
+};
