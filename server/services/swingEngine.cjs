@@ -12,7 +12,7 @@ function pct(from, to) {
   return round(((to - from) / from) * 100, 2);
 }
 
-function buildSwingPlaybook(quote, technicals, ohlcv = []) {
+function buildSwingPlaybook(quote, technicals, ohlcv = [], marketRegime = null) {
   const price = quote?.price || technicals?.currentPrice;
   if (!price || !technicals || technicals.error) {
     return {
@@ -78,6 +78,11 @@ function buildSwingPlaybook(quote, technicals, ohlcv = []) {
     else confluence.push('No edge setup detected in current trend.');
   }
 
+  // Overextension veto
+  if (v2Data.isOverextended) {
+    confluence.push('Veto: Price is extended >12% over 50 EMA. Chasing not allowed.');
+  }
+
   // Calculate Stops according to v2 doc
   let entry = price;
   let stop;
@@ -96,7 +101,6 @@ function buildSwingPlaybook(quote, technicals, ohlcv = []) {
     const minRisk = 0.8 * atr;
     if (entry - stop < minRisk) stop = round(entry - minRisk); // Floor
   } else if (bias === 'SHORT') {
-    // Shorts not explicitly targeted in this long-biased design, but fallback math:
     entry = price;
     stop = round(entry + atrMult * atr);
   } else {
@@ -105,8 +109,10 @@ function buildSwingPlaybook(quote, technicals, ohlcv = []) {
 
   const riskPts = bias === 'SHORT' ? (stop - entry) : (entry - stop);
   
-  // Reject if stop is too far
-  let tradeWorthy = setup !== 'WAIT' && setup !== 'INSUFFICIENT_DATA';
+  // Trade worthiness checks
+  let tradeWorthy = setup !== 'WAIT' && setup !== 'INSUFFICIENT_DATA' && !v2Data.isOverextended;
+
+  // Stop width check
   if (tradeWorthy && (riskPts > 2.5 * atr || riskPts > 0.08 * entry)) {
     tradeWorthy = false;
     confluence.push('Trade rejected: Risk (stop loss) is too wide (> 2.5 ATR or > 8%).');
@@ -132,15 +138,22 @@ function buildSwingPlaybook(quote, technicals, ohlcv = []) {
     confluence.push(`Trade rejected: R:R is ${rr}, which is below minimum 1.5.`);
   }
 
+  // Market Regime Veto
+  if (marketRegime === 'RISK_OFF' && tradeWorthy) {
+    tradeWorthy = false;
+    confluence.push('Market Regime Veto: Broader market is in RISK_OFF. Cash preservation active — no new long entries.');
+  }
+
   const capital = 100000;
-  // Position sizing (v2 uses regime mult, we mock 1.0 here for risk-on)
-  const regimeMult = stockRegime === 'TREND' ? 1.0 : 0.5;
-  const riskPct = 0.01;
+  // Position sizing using regime multiplier
+  const effectiveRegime = marketRegime || (stockRegime === 'TREND' ? 'RISK_ON' : 'NEUTRAL');
+  const regimeMult = effectiveRegime === 'RISK_ON' ? 1.0 : effectiveRegime === 'RISK_OFF' ? 0.25 : 0.5;
+  const riskPct = 0.01; // 1% account risk
   const maxRiskCapital = capital * riskPct * regimeMult;
   
   let shares = 0;
   if (riskPts > 0) shares = Math.floor(maxRiskCapital / riskPts);
-  const maxByCap = Math.floor((capital * 0.15) / entry); // Max 15% of capital
+  const maxByCap = Math.floor((capital * 0.15) / entry); // Max 15% notional cap
   shares = Math.max(0, Math.min(shares, maxByCap));
 
   const positionPct = round((shares * entry) / capital * 100, 1);

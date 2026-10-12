@@ -54,4 +54,35 @@ router.get('/scan', async (req, res) => {
   }
 });
 
+// Get current market regime
+const { getMarketRegime } = require('../services/regimeEngine.cjs');
+router.get('/regime', async (req, res) => {
+  try {
+    const regime = await getMarketRegime();
+    res.json(regime);
+  } catch (err) {
+    console.error('[Route] Regime error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch market regime' });
+  }
+});
+
+// Run or fetch portfolio backtest results
+const { PortfolioBacktest } = require('../backtest/portfolio_backtest.cjs');
+const cache = require('../utils/cache.cjs');
+router.get('/backtest', async (req, res) => {
+  try {
+    const cacheKey = 'backtest:portfolio:results';
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
+    const bt = new PortfolioBacktest(500000);
+    const results = await bt.run(1.5);
+    cache.set(cacheKey, results, 3600); // 1 hour cache
+    res.json(results);
+  } catch (err) {
+    console.error('[Route] Backtest error:', err.message);
+    res.status(500).json({ error: 'Failed to run backtest' });
+  }
+});
+
 module.exports = router;

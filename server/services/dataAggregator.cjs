@@ -6,6 +6,9 @@ const { getRedditSentiment } = require('./redditService.cjs');
 const { buildSwingPlaybook } = require('./swingEngine.cjs');
 const cache = require('../utils/cache.cjs');
 
+const { getMarketRegime } = require('./regimeEngine.cjs');
+const { calculateRelativeStrength } = require('./rsEngine.cjs');
+
 async function aggregateStockData(symbol, options = {}) {
   const cacheKey = `aggregate:v2:${symbol}`;
   const cached = cache.get(cacheKey);
@@ -13,12 +16,13 @@ async function aggregateStockData(symbol, options = {}) {
 
   console.log(`[DataAggregator] Collecting data for ${symbol}...`);
 
-  const [quote, historical6m, news, newsAPI, reddit] = await Promise.allSettled([
+  const [quote, historical6m, news, newsAPI, reddit, marketRegime] = await Promise.allSettled([
     yahooFinance.getQuote(symbol),
     yahooFinance.getHistorical(symbol, '1y', '1d'),
     getNewsForStock(symbol, options.companyName),
     getNewsFromNewsAPI(symbol, options.companyName, options.newsApiKey),
     getRedditSentiment(symbol, options.companyName),
+    getMarketRegime(),
   ]);
 
   const quoteData = quote.status === 'fulfilled' ? quote.value : null;
@@ -26,13 +30,19 @@ async function aggregateStockData(symbol, options = {}) {
   const newsData = news.status === 'fulfilled' ? news.value : [];
   const newsAPIData = newsAPI.status === 'fulfilled' ? newsAPI.value : [];
   const redditData = reddit.status === 'fulfilled' ? reddit.value : { posts: [], summary: {} };
+  const regimeData = marketRegime.status === 'fulfilled' ? marketRegime.value : { regime: 'NEUTRAL' };
 
   if (!quoteData) {
     throw new Error(`Could not fetch quote data for ${symbol}. Please verify the stock symbol.`);
   }
 
+  const rsData = await calculateRelativeStrength(hist6m).catch(() => ({ rsScore: 0.5, rsRating: 50 }));
   const technicals = calculateIndicators(hist6m);
-  const swingPlaybook = buildSwingPlaybook(quoteData, technicals, hist6m);
+  if (technicals.v2ScoreData?.components) {
+    technicals.v2ScoreData.components.rs = rsData.rsScore;
+  }
+
+  const swingPlaybook = buildSwingPlaybook(quoteData, technicals, hist6m, regimeData.regime);
 
   const allNews = [...newsData, ...newsAPIData];
   const uniqueNews = allNews.filter((item, index, self) =>
@@ -43,6 +53,8 @@ async function aggregateStockData(symbol, options = {}) {
     symbol: symbol.toUpperCase(),
     fetchedAt: new Date().toISOString(),
     quote: quoteData,
+    marketRegime: regimeData,
+    relativeStrength: rsData,
     technicals,
     swingPlaybook,
     news: uniqueNews,

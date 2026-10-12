@@ -519,19 +519,72 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
             </div>
           )}
 
-          {/* Technical Score */}
+          {/* Deterministic Swing Playbook (Quant Engine v2) */}
+          {data.swingPlaybook && (
+            <div className="glass-card" style={{ padding: '1.5rem', borderLeft: `4px solid ${data.swingPlaybook.tradeWorthy ? 'var(--color-buy)' : 'var(--text-tertiary)'}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <h3 style={{ margin: 0 }}>🎯 Quant Swing Setup</h3>
+                <span className={`badge ${data.swingPlaybook.tradeWorthy ? 'badge-strong-buy' : 'badge-neutral'}`}>
+                  {data.swingPlaybook.setup?.replace(/_/g, ' ')}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+                <div><span className="text-xs text-muted block">Trigger/Entry</span><strong style={{ fontFamily: 'monospace' }}>₹{data.swingPlaybook.levels?.entry || quote?.price}</strong></div>
+                <div><span className="text-xs text-muted block">Stop Loss</span><strong style={{ fontFamily: 'monospace', color: 'var(--color-sell)' }}>₹{data.swingPlaybook.levels?.stop}</strong></div>
+                <div><span className="text-xs text-muted block">Target 1 (T1)</span><strong style={{ fontFamily: 'monospace', color: 'var(--color-buy)' }}>₹{data.swingPlaybook.levels?.t1}</strong></div>
+                <div><span className="text-xs text-muted block">Target 2 (T2)</span><strong style={{ fontFamily: 'monospace', color: 'var(--color-buy)' }}>₹{data.swingPlaybook.levels?.t2}</strong></div>
+                <div><span className="text-xs text-muted block">Risk : Reward</span><strong>{data.swingPlaybook.riskRewardT1 || 'N/A'}:1</strong></div>
+                <div><span className="text-xs text-muted block">Position Size</span><strong>{data.swingPlaybook.position?.shares || 0} shares</strong></div>
+              </div>
+              {data.swingPlaybook.explain?.howToTrade && (
+                <div style={{ fontSize: '0.75rem', padding: '0.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', lineHeight: 1.4, color: 'var(--text-secondary)' }}>
+                  {data.swingPlaybook.explain.howToTrade}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Technical Score & 6-Factor Model */}
           {technicals && !technicals.error && (
             <div className="glass-card" style={{ padding: '1.5rem' }}>
-              <h3 style={{ marginBottom: '1rem' }}>⚡ Technical Score</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ margin: 0 }}>⚡ Quant Scorecard</h3>
+                <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>V2 MULTI-FACTOR</span>
+              </div>
               <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
                 <div style={{
                   fontSize: '3rem', fontWeight: 900,
                   color: technicals.overallTechnicalScore >= 60 ? 'var(--color-buy)' : technicals.overallTechnicalScore >= 40 ? 'var(--color-hold)' : 'var(--color-sell)',
                 }}>{technicals.overallTechnicalScore}<span style={{ fontSize: '1.2rem', color: 'var(--text-tertiary)' }}>/100</span></div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>
-                  {technicals.overallTechnicalScore >= 60 ? 'High score means strong upward momentum and good buy setup.' : technicals.overallTechnicalScore >= 40 ? 'Mid score means the stock is moving sideways or lacks clear direction.' : 'Low score means the stock is in a downtrend or stretched too high.'}
+                  {technicals.overallTechnicalScore >= 65 ? 'High conviction trade candidate.' : technicals.overallTechnicalScore >= 50 ? 'Moderate momentum, awaiting clear trigger.' : 'Weak structure or overextended.'}
                 </div>
               </div>
+
+              {/* 6-Factor Meters */}
+              {technicals.v2ScoreData?.components && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                  {[
+                    { label: 'Trend (25%)', val: technicals.v2ScoreData.components.trend },
+                    { label: 'Relative Strength (20%)', val: technicals.v2ScoreData.components.rs },
+                    { label: 'Momentum (15%)', val: technicals.v2ScoreData.components.mom },
+                    { label: 'Volume Flow (15%)', val: technicals.v2ScoreData.components.vol },
+                    { label: 'Market Structure (15%)', val: technicals.v2ScoreData.components.struct },
+                    { label: 'Volatility Contraction (10%)', val: technicals.v2ScoreData.components.vc },
+                  ].map((f, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                      <span className="text-muted">{f.label}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: '60px', height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.round((f.val || 0) * 100)}%`, height: '100%', background: (f.val >= 0.7 ? 'var(--color-buy)' : f.val >= 0.4 ? 'var(--color-hold)' : 'var(--color-sell)') }} />
+                        </div>
+                        <span style={{ fontFamily: 'monospace', minWidth: '30px', textAlign: 'right' }}>{Math.round((f.val || 0) * 100)}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                 {technicals.signals?.slice(0, 6).map((s, i) => (
                   <span key={i} style={{

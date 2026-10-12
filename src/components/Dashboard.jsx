@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { searchStocks, analyzeStock, fetchStockData, getMarketNews, initAI, getAIStatus, scanSwingSetups } from '../api.js';
+import { searchStocks, analyzeStock, fetchStockData, getMarketNews, initAI, getAIStatus, scanSwingSetups, getMarketRegime, getBacktestResults } from '../api.js';
 
 export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady }) {
   const [query, setQuery] = useState('');
@@ -10,6 +10,8 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
   const [analyzeStages, setAnalyzeStages] = useState([]);
   const [marketNews, setMarketNews] = useState([]);
   const [swingPicks, setSwingPicks] = useState(null);
+  const [marketRegime, setMarketRegime] = useState(null);
+  const [backtestStats, setBacktestStats] = useState(null);
   const [recentAnalyses, setRecentAnalyses] = useState(() => {
     const saved = localStorage.getItem('stocksage_recent');
     return saved ? JSON.parse(saved) : [];
@@ -35,10 +37,12 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
     checkAndInit();
   }, [settings.geminiKey]);
 
-  // Fetch market news and swing scan on mount
+  // Fetch market news, swing scan, regime, and backtest results on mount
   useEffect(() => {
     getMarketNews().then(data => setMarketNews(data.news || [])).catch(() => {});
     scanSwingSetups().then(data => setSwingPicks(data)).catch(() => {});
+    getMarketRegime().then(data => setMarketRegime(data)).catch(() => {});
+    getBacktestResults().then(data => setBacktestStats(data)).catch(() => {});
   }, []);
 
   // Click outside to close search results
@@ -143,6 +147,50 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
         ⚠️ <span>Disclaimer: This tool is for educational purposes only. AI-generated analysis should not be the sole basis for investment decisions. Always do your own research.</span>
       </div>
 
+      {/* Indian Market Regime Banner */}
+      {marketRegime && (
+        <div className="glass-card" style={{ marginBottom: '1.5rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', borderLeft: `4px solid ${marketRegime.regime === 'RISK_ON' ? 'var(--color-buy)' : marketRegime.regime === 'RISK_OFF' ? 'var(--color-sell)' : '#f59e0b'}` }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Indian Market Regime</span>
+              <span className={`badge ${marketRegime.regime === 'RISK_ON' ? 'badge-strong-buy' : marketRegime.regime === 'RISK_OFF' ? 'badge-strong-sell' : 'badge-hold'}`}>
+                {marketRegime.regime.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <p className="text-sm text-muted" style={{ margin: 0 }}>
+              {marketRegime.summary}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
+            {marketRegime.nifty?.price > 0 && (
+              <div style={{ textAlign: 'right' }}>
+                <div className="text-xs text-muted">NIFTY 50</div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                  ₹{marketRegime.nifty.price.toLocaleString('en-IN')}{' '}
+                  <span style={{ fontSize: '0.8rem', color: marketRegime.nifty.changePercent >= 0 ? 'var(--color-buy)' : 'var(--color-sell)' }}>
+                    {marketRegime.nifty.changePercent >= 0 ? '+' : ''}{marketRegime.nifty.changePercent}%
+                  </span>
+                </div>
+              </div>
+            )}
+            {marketRegime.vix?.price && (
+              <div style={{ textAlign: 'right' }}>
+                <div className="text-xs text-muted">INDIA VIX</div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem', color: marketRegime.vix.price > 20 ? 'var(--color-sell)' : 'var(--text-primary)' }}>
+                  {marketRegime.vix.price}
+                </div>
+              </div>
+            )}
+            <div style={{ textAlign: 'right', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem' }}>
+              <div className="text-xs text-muted">Allowed Entries</div>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: marketRegime.entriesAllowed > 0 ? 'var(--color-buy)' : 'var(--color-sell)' }}>
+                {marketRegime.entriesAllowed} slots
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="dashboard-header">
         <h1>Good {getGreeting()}, Trader! 👋</h1>
         <p>Search for any NSE/BSE stock to get a comprehensive AI-powered expert analysis</p>
@@ -223,7 +271,7 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
         {/* Swing Radar */}
         <div className="glass-card">
           <h3 style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between' }}>
-            <span>🎯 Swing Radar</span>
+            <span>🎯 Swing Radar V2</span>
             {swingPicks?.scannedAt && (
               <span className="text-muted" style={{ fontSize: '0.75rem', fontWeight: 'normal' }}>
                 {new Date(swingPicks.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -232,10 +280,34 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
           </h3>
           {!swingPicks ? (
             <p className="text-muted text-sm">Scanning universe for setups...</p>
-          ) : swingPicks.topLongs?.length === 0 ? (
-            <p className="text-muted text-sm">No high-quality setups found today. Cash is a position.</p>
+          ) : (swingPicks.topLongs?.length === 0 && swingPicks.setups?.length > 0) ? (
+            <div>
+              <p className="text-muted text-sm" style={{ marginBottom: '0.75rem' }}>
+                {swingPicks.marketRegime?.regime === 'RISK_OFF' 
+                  ? 'Market regime is RISK_OFF. Cash protection active. Showing watchlisted candidates:'
+                  : 'Active setups on waitlist for trigger:'}
+              </p>
+              {swingPicks.setups.slice(0, 4).map((pick, i) => (
+                <div
+                  key={i}
+                  className="search-result-item"
+                  style={{ cursor: 'pointer', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid rgba(255,255,255,0.2)' }}
+                  onClick={() => handleSelectStock({ symbol: pick.symbol, name: pick.name })}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div className="search-result-symbol">{pick.symbol}</div>
+                      <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>Score {pick.qualityScore}/100</span>
+                    </div>
+                    <div className="text-xs text-muted" style={{ marginTop: '0.25rem' }}>
+                      {pick.setup.replace(/_/g, ' ')} • ₹{pick.price} • RS: {pick.rsRating || 50}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
-            swingPicks.topLongs.map((pick, i) => (
+            swingPicks.topLongs?.map((pick, i) => (
               <div
                 key={i}
                 className="search-result-item"
@@ -248,13 +320,44 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
                     <div className="text-xs" style={{ color: 'var(--color-buy)' }}>Tgt: ₹{pick.t1}</div>
                   </div>
                   <div className="text-xs text-muted" style={{ marginTop: '0.25rem' }}>
-                    {pick.setup.replace(/_/g, ' ')} • R/R: {pick.riskRewardT1}
+                    {pick.setup.replace(/_/g, ' ')} • Score: {pick.qualityScore} • R/R: {pick.riskRewardT1}
                   </div>
                 </div>
               </div>
             ))
           )}
         </div>
+
+        {/* Quant Engine v2 Research Edge Card */}
+        {backtestStats && (
+          <div className="glass-card">
+            <h3 style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>⚡ Quant Engine v2 Edge</span>
+              <span className="badge badge-strong-buy" style={{ fontSize: '0.7rem' }}>VERIFIED HARNESS</span>
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '0.6rem', borderRadius: 'var(--radius-sm)' }}>
+                <div className="text-xs text-muted">Win Rate</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-buy)' }}>{backtestStats.winRate}%</div>
+              </div>
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '0.6rem', borderRadius: 'var(--radius-sm)' }}>
+                <div className="text-xs text-muted">Profit Factor</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>{backtestStats.profitFactor}</div>
+              </div>
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '0.6rem', borderRadius: 'var(--radius-sm)' }}>
+                <div className="text-xs text-muted">Max Drawdown</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-sell)' }}>{backtestStats.maxDrawdownPct}%</div>
+              </div>
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '0.6rem', borderRadius: 'var(--radius-sm)' }}>
+                <div className="text-xs text-muted">Sample Trades</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>{backtestStats.totalTrades}</div>
+              </div>
+            </div>
+            <p className="text-xs text-muted" style={{ margin: 0 }}>
+              Event-driven EOD execution modeling slippage (0.15%), delivery STT (0.1%), and brokerage.
+            </p>
+          </div>
+        )}
 
         {/* Market News */}
         <div className="glass-card">
