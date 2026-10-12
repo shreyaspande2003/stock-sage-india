@@ -9,7 +9,7 @@ const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey', 'ripHis
 // Convert NSE symbol to Yahoo Finance format
 function toYahooSymbol(symbol) {
   const s = symbol.toUpperCase().trim();
-  if (s.endsWith('.NS') || s.endsWith('.BO')) return s;
+  if (s.startsWith('^') || s.endsWith('.NS') || s.endsWith('.BO')) return s;
   return `${s}.NS`; // Default to NSE
 }
 

@@ -116,7 +116,20 @@ async function analyzeWithAgent(agentConfig, dataContext, previousAnalyses = {})
     }) + '\n\n';
   }
 
-  fullPrompt += `\n\nCRITICAL INSTRUCTION: You MUST return ONLY a raw JSON object exactly matching this schema. Do not wrap in \`\`\`json markdown blocks. Just raw JSON text:\n${JSON.stringify(outputSchema, null, 2)}\n\nBe specific with price levels in INR. Today's date is ${new Date().toISOString().split('T')[0]}.`;
+  if (dataContext.marketRegime) {
+    fullPrompt += `### Indian Market Macro Regime\n`;
+    fullPrompt += `Regime: ${dataContext.marketRegime.regime} (Score: ${dataContext.marketRegime.regimeScore})\n`;
+    fullPrompt += `Summary: ${dataContext.marketRegime.summary}\n`;
+    fullPrompt += `India VIX: ${dataContext.marketRegime.vix?.price || 'N/A'}\n\n`;
+  }
+
+  if (dataContext.relativeStrength) {
+    fullPrompt += `### Relative Strength vs NIFTY 50\n`;
+    fullPrompt += `RS Rating: ${dataContext.relativeStrength.rsRating}/99 (${dataContext.relativeStrength.rsLineStatus})\n`;
+    fullPrompt += `Outperformance 20d: ${dataContext.relativeStrength.outperformance20d}% | 60d: ${dataContext.relativeStrength.outperformance60d}%\n\n`;
+  }
+
+  fullPrompt += `\n\nCRITICAL INSTRUCTION: You MUST return ONLY a raw JSON object exactly matching this schema. Do not wrap in \`\`\`json markdown blocks. Just raw JSON text:\n${JSON.stringify(outputSchema, null, 2)}\n\nRULE: If the Quantitative Swing Playbook provides deterministic price levels, explain the thesis and sentiment around those levels, but DO NOT invent contradictory entry/stop levels. Today's date is ${new Date().toISOString().split('T')[0]}.`;
 
   // Try with fallback models and retry on 503/429
   const modelChain = useProModel ? PRO_MODELS : FLASH_MODELS;
