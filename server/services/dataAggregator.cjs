@@ -10,9 +10,9 @@ const { getMarketRegime } = require('./regimeEngine.cjs');
 const { calculateRelativeStrength } = require('./rsEngine.cjs');
 
 async function aggregateStockData(symbol, options = {}) {
-  const cacheKey = `aggregate:v2:${symbol}`;
+  const cacheKey = `aggregate:v3:${symbol}`;
   const cached = cache.get(cacheKey);
-  if (cached) return cached;
+  if (cached && cached.quantConsensus) return cached;
 
   console.log(`[DataAggregator] Collecting data for ${symbol}...`);
 
