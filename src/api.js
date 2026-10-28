@@ -34,6 +34,7 @@ export const searchStocks = (query) => apiFetch(`/stocks/search?q=${encodeURICom
 export const getQuote = (symbol) => apiFetch(`/stocks/quote/${symbol}`);
 export const getHistorical = (symbol, range = '6mo') => apiFetch(`/stocks/historical/${symbol}?range=${range}`);
 export const scanSwingSetups = () => apiFetch('/stocks/scan');
+export const getMorningTriggers = () => apiFetch('/stocks/morning-triggers');
 export const getMarketRegime = () => apiFetch('/stocks/regime');
 export const getBacktestResults = () => apiFetch('/stocks/backtest');
 

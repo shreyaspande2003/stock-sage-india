@@ -54,6 +54,18 @@ router.get('/scan', async (req, res) => {
   }
 });
 
+// Morning Breakout & Coiled Spring Live Trigger Radar
+const { getMorningBreakoutTriggers } = require('../services/morningTriggerEngine.cjs');
+router.get('/morning-triggers', async (req, res) => {
+  try {
+    const data = await getMorningBreakoutTriggers();
+    res.json(data);
+  } catch (err) {
+    console.error('[Route] Morning triggers error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch morning breakout triggers' });
+  }
+});
+
 // Get current market regime
 const { getMarketRegime } = require('../services/regimeEngine.cjs');
 router.get('/regime', async (req, res) => {

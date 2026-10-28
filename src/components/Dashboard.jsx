@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { searchStocks, analyzeStock, fetchStockData, getMarketNews, initAI, getAIStatus, scanSwingSetups, getMarketRegime, getBacktestResults } from '../api.js';
+import { searchStocks, analyzeStock, fetchStockData, getMarketNews, initAI, getAIStatus, scanSwingSetups, getMarketRegime, getBacktestResults, getMorningTriggers } from '../api.js';
 
 export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady }) {
   const [query, setQuery] = useState('');
@@ -13,6 +13,9 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
   const [marketRegime, setMarketRegime] = useState(null);
   const [backtestStats, setBacktestStats] = useState(null);
   const [capFilter, setCapFilter] = useState('ALL');
+  const [morningData, setMorningData] = useState(null);
+  const [morningFilter, setMorningFilter] = useState('ALL');
+  const [morningLoading, setMorningLoading] = useState(false);
   const [recentAnalyses, setRecentAnalyses] = useState(() => {
     const saved = localStorage.getItem('stocksage_recent');
     return saved ? JSON.parse(saved) : [];
@@ -38,13 +41,25 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
     checkAndInit();
   }, [settings.geminiKey]);
 
-  // Fetch market news, swing scan, regime, and backtest results on mount
+  // Fetch market news, swing scan, morning triggers, regime, and backtest results on mount
   useEffect(() => {
     getMarketNews().then(data => setMarketNews(data.news || [])).catch(() => {});
     scanSwingSetups().then(data => setSwingPicks(data)).catch(() => {});
+    getMorningTriggers().then(data => setMorningData(data)).catch(() => {});
     getMarketRegime().then(data => setMarketRegime(data)).catch(() => {});
     getBacktestResults().then(data => setBacktestStats(data)).catch(() => {});
   }, []);
+
+  const refreshMorningTriggers = async () => {
+    setMorningLoading(true);
+    try {
+      const data = await getMorningTriggers();
+      setMorningData(data);
+    } catch (e) {
+      console.error('Failed to refresh morning triggers:', e);
+    }
+    setMorningLoading(false);
+  };
 
   // Click outside to close search results
   useEffect(() => {
@@ -238,6 +253,214 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
         {error && (
           <p style={{ color: 'var(--color-sell)', marginTop: '0.75rem', fontSize: '0.9rem' }}>{error}</p>
         )}
+      </div>
+
+      {/* Morning Breakout & Coiled Spring Live Trigger Radar */}
+      <div className="glass-card" style={{ marginBottom: '1.75rem', border: '1px solid rgba(6, 182, 212, 0.35)', background: 'linear-gradient(180deg, rgba(6, 182, 212, 0.06) 0%, rgba(15, 23, 42, 0.75) 100%)', boxShadow: '0 8px 32px rgba(6, 182, 212, 0.1)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.6rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.2rem', color: '#ffffff' }}>
+              <span>⚡ Morning Breakout Radar</span>
+            </h3>
+            <span style={{
+              fontSize: '0.65rem',
+              padding: '0.15rem 0.6rem',
+              borderRadius: '1rem',
+              background: morningData?.sessionInfo?.isMarketOpen ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+              color: morningData?.sessionInfo?.isMarketOpen ? 'var(--color-buy)' : 'var(--text-tertiary)',
+              border: morningData?.sessionInfo?.isMarketOpen ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+              fontWeight: 700,
+              letterSpacing: '0.04em'
+            }}>
+              {morningData?.sessionInfo?.isMarketOpen ? '● LIVE MARKET HOURS' : '🌙 PRE/POST-MARKET'}
+            </span>
+            {morningData?.sessionInfo?.isMorningHour && (
+              <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '1rem', background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', fontWeight: 700 }}>
+                🔥 9:15-10:30 AM PRIME WINDOW
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+              IST: {morningData?.sessionInfo?.istTimeString || 'Syncing...'}
+            </span>
+            <button
+              type="button"
+              onClick={refreshMorningTriggers}
+              disabled={morningLoading}
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid var(--border-secondary)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-primary)',
+                fontSize: '0.75rem',
+                padding: '0.25rem 0.65rem',
+                cursor: 'pointer',
+                fontWeight: 600,
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {morningLoading ? 'Scanning...' : '🔄 Live Refresh'}
+            </button>
+          </div>
+        </div>
+
+        <p className="text-muted text-xs" style={{ margin: '0 0 1rem 0' }}>
+          Identifies <strong>Day T-1 Volatility Compression (VCP)</strong> and detects immediate breakout ignition when morning institutional volume surges past the pivot ceiling. Designed to catch fast +10% to +16% single-day moves at ₹202 instead of chasing at ₹231.
+        </p>
+
+        {/* Filter Pills */}
+        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          {[
+            { id: 'ALL', label: `All Alerts (${morningData?.allPrioritized?.length || 0})` },
+            { id: 'FIRED', label: `🚀 Fired (Buy Zone) (${morningData?.counts?.fired || 0})` },
+            { id: 'ARMED', label: `⏳ Coiled Springs (${morningData?.counts?.armed || 0})` },
+            { id: 'EXTENDED', label: `⚡ Extended (+10% Hit) (${morningData?.counts?.extended || 0})` },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setMorningFilter(tab.id)}
+              style={{
+                fontSize: '0.72rem',
+                padding: '0.25rem 0.75rem',
+                borderRadius: '1rem',
+                border: morningFilter === tab.id ? '1px solid var(--accent-cyan)' : '1px solid var(--border-secondary)',
+                cursor: 'pointer',
+                background: morningFilter === tab.id ? 'rgba(6, 182, 212, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                color: morningFilter === tab.id ? '#ffffff' : 'var(--text-secondary)',
+                fontWeight: morningFilter === tab.id ? 700 : 500,
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Dynamic Card Display */}
+        {!morningData ? (
+          <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)' }}>
+            <div className="spinner" style={{ width: '28px', height: '28px', margin: '0 auto 0.5rem auto' }}></div>
+            <p className="text-xs">Scanning 45+ multi-cap stocks for morning breakout pivots & volume spikes...</p>
+          </div>
+        ) : (() => {
+          let list = [];
+          if (morningFilter === 'ALL') list = morningData.allPrioritized || [];
+          else if (morningFilter === 'FIRED') list = morningData.fired || [];
+          else if (morningFilter === 'ARMED') list = morningData.armed || [];
+          else if (morningFilter === 'EXTENDED') list = morningData.extended || [];
+
+          if (list.length === 0) {
+            return (
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
+                <p className="text-muted text-xs" style={{ margin: 0 }}>
+                  {morningFilter === 'FIRED'
+                    ? 'No stocks are currently in the immediate 0-4.5% Breakout Buy Zone with >1.6x volume pace. Check Armed Coiled Springs below.'
+                    : morningFilter === 'ARMED'
+                    ? 'No coiled spring setups within 3.5% of pivot right now.'
+                    : 'No setups matching this filter.'}
+                </p>
+              </div>
+            );
+          }
+
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: '0.85rem' }}>
+              {list.slice(0, 8).map((stock, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => handleSelectStock({ symbol: stock.symbol, name: stock.name })}
+                  style={{
+                    background: stock.status === 'FIRED' 
+                      ? 'rgba(16, 185, 129, 0.08)' 
+                      : stock.status === 'EXTENDED'
+                      ? 'rgba(245, 158, 11, 0.05)'
+                      : 'rgba(255, 255, 255, 0.03)',
+                    border: stock.status === 'FIRED' 
+                      ? '1px solid rgba(16, 185, 129, 0.4)' 
+                      : stock.status === 'EXTENDED'
+                      ? '1px solid rgba(245, 158, 11, 0.3)'
+                      : '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '0.85rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    position: 'relative'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent-cyan)'}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = stock.status === 'FIRED' 
+                      ? 'rgba(16, 185, 129, 0.4)' 
+                      : stock.status === 'EXTENDED'
+                      ? 'rgba(245, 158, 11, 0.3)'
+                      : 'rgba(255, 255, 255, 0.08)';
+                  }}
+                >
+                  {/* Top: Header & Status Badge */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span style={{ fontWeight: 800, fontSize: '1rem', color: '#ffffff' }}>{stock.symbol}</span>
+                        <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-tertiary)' }}>
+                          {stock.cap === 'LARGE_CAP' ? 'Large' : stock.cap === 'MID_CAP' ? 'Mid' : 'Small'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted" style={{ marginTop: '0.1rem' }}>{stock.sector}</div>
+                    </div>
+                    <span className={`badge ${stock.badgeClass}`} style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem' }}>
+                      {stock.statusLabel}
+                    </span>
+                  </div>
+
+                  {/* Middle: Metrics Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', background: 'rgba(0, 0, 0, 0.25)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', marginBottom: '0.5rem' }}>
+                    <div>
+                      <div className="text-xs text-muted">Price</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>
+                        ₹{stock.currentPrice}{' '}
+                        <span style={{ fontSize: '0.7rem', color: stock.changePercent >= 0 ? 'var(--color-buy)' : 'var(--color-sell)' }}>
+                          {stock.changePercent >= 0 ? '+' : ''}{stock.changePercent}%
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted">Pivot Roof</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>₹{stock.pivot}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted">Distance</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem', color: stock.distFromPivotPct >= 0 ? (stock.distFromPivotPct > 4.5 ? 'var(--color-hold)' : 'var(--color-buy)') : 'var(--text-secondary)' }}>
+                        {stock.distFromPivotPct >= 0 ? `+${stock.distFromPivotPct}%` : `${stock.distFromPivotPct}%`}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted">Vol Pace</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem', color: stock.volPaceRatio >= 2 ? 'var(--color-buy)' : 'var(--text-primary)' }}>
+                        {stock.volPaceRatio}x
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted">BB Squeeze</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem', color: stock.bbWidth <= 15 ? 'var(--accent-cyan)' : 'var(--text-primary)' }}>
+                        {stock.bbWidth}%
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted">Target 1 (+10%)</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--color-buy)' }}>₹{stock.target1}</div>
+                    </div>
+                  </div>
+
+                  {/* Playbook Action Guidance */}
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    {stock.actionText}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Dashboard Grid */}
