@@ -5,14 +5,14 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
   const [holding, setHolding] = useState(null);
   const [expandedExpert, setExpandedExpert] = useState(null);
   const [data, setData] = useState(initialData);
-  const [aiLoading, setAiLoading] = useState(!initialData.expertAnalysis);
+  const [aiLoading, setAiLoading] = useState(Boolean(!initialData.expertAnalysis && isAIReady));
   const [aiError, setAiError] = useState(null);
 
   // Fetch AI analysis if it wasn't provided yet
   useEffect(() => {
     if (!initialData.expertAnalysis && isAIReady) {
+      setAiLoading(true);
       import('../api.js').then(({ analyzeStock }) => {
-        setAiLoading(true);
         analyzeStock(initialData.symbol, settings.newsApiKey)
           .then(fullData => {
             setData(fullData);
@@ -24,6 +24,8 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
             setAiLoading(false);
           });
       });
+    } else {
+      setAiLoading(false);
     }
   }, [initialData.symbol, initialData.expertAnalysis, isAIReady, settings.newsApiKey]);
 
@@ -372,12 +374,26 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
             </div>
           </div>
         </div>
+      ) : isAIReady ? (
+        <div style={{ marginBottom: '1.5rem', background: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(245, 158, 11, 0.3)', textAlign: 'center' }}>
+          <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>⚠️</div>
+          <h3 style={{ marginBottom: '0.5rem' }}>AI Multi-Expert Analysis Incomplete</h3>
+          <p className="text-muted text-sm">The AI models encountered an issue or rate limit. Quantitative technical levels and swing indicators remain active below.</p>
+          {chief?.message && <p style={{ color: 'var(--color-sell)', fontSize: '0.85rem', marginTop: '0.5rem' }}>{chief.message}</p>}
+        </div>
       ) : (
-        <div style={{ marginBottom: '1.5rem', background: 'var(--bg-secondary)', padding: '2rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(245, 158, 11, 0.3)', textAlign: 'center' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⚠️</div>
-          <h3 style={{ marginBottom: '0.5rem' }}>AI Analysis Failed</h3>
-          <p className="text-muted">The AI agents could not analyze this stock. This usually means your OpenRouter API key is invalid or has expired. Go to <strong>Settings</strong> to update your key, then try again.</p>
-          {chief?.message && <p style={{ color: 'var(--color-sell)', fontSize: '0.85rem', marginTop: '0.75rem' }}>{chief.message}</p>}
+        <div className="glass-card" style={{ marginBottom: '1.5rem', border: '1px solid rgba(6, 182, 212, 0.3)', background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.05) 0%, rgba(15, 23, 42, 0.6) 100%)', padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#ffffff' }}>🤖 AI Multi-Agent Quantitative Committee</span>
+                <span className="badge badge-neutral" style={{ fontSize: '0.65rem' }}>STANDBY</span>
+              </div>
+              <div className="text-xs text-muted">
+                Live candlestick chart, technical indicators (RSI, MACD, Bollinger Bands, ATR), and the Quantitative Swing Playbook are active below. To activate 5 autonomous LLM agents debating this setup, add an OpenRouter API key in Settings.
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

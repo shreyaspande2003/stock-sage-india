@@ -1,7 +1,10 @@
 // AI Engine — manages OpenRouter API calls with structured output, caching, and multi-expert pipeline
 const cache = require('../utils/cache.cjs');
 
-let openRouterKey = null;
+let openRouterKey = process.env.OPENROUTER_API_KEY || null;
+if (openRouterKey) {
+  console.log(`[AIEngine] Auto-initialized OpenRouter from environment variables.`);
+}
 // Use free/cheap models on OpenRouter
 const FLASH_MODELS = ['google/gemini-3.5-flash', 'google/gemini-2.5-flash', 'meta-llama/llama-3.1-8b-instruct'];
 const PRO_MODELS = ['nvidia/nemotron-3-ultra-550b-a55b', 'google/gemini-2.5-pro', 'meta-llama/llama-3.1-70b-instruct'];

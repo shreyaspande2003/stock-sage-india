@@ -58,7 +58,51 @@ async function getQuote(symbol) {
     cache.set(cacheKey, result, 300); // 5-min cache
     return result;
   } catch (err) {
-    console.error(`[YahooFinance] Quote error for ${symbol}:`, err.message);
+    console.warn(`[YahooFinance] Quote API failed for ${symbol} (${err.message}). Attempting historical OHLCV fallback...`);
+    try {
+      const hist = await getHistorical(symbol, '1mo', '1d');
+      if (hist && hist.length > 0) {
+        const last = hist[hist.length - 1];
+        const prev = hist.length > 1 ? hist[hist.length - 2] : last;
+        const change = Math.round((last.close - prev.close) * 100) / 100;
+        const changePercent = prev.close ? Math.round(((last.close - prev.close) / prev.close) * 10000) / 100 : 0;
+        const highs = hist.map(h => h.high || h.close);
+        const lows = hist.map(h => h.low || h.close);
+        const vols = hist.map(h => h.volume || 0);
+        const avgVol = vols.length ? Math.round(vols.reduce((a, b) => a + b, 0) / vols.length) : 0;
+
+        const fallback = {
+          symbol: symbol.toUpperCase(),
+          yahooSymbol: ySymbol,
+          name: symbol.toUpperCase(),
+          price: last.close,
+          previousClose: prev.close,
+          open: last.open || last.close,
+          dayHigh: last.high || last.close,
+          dayLow: last.low || last.close,
+          volume: last.volume || 0,
+          avgVolume: avgVol,
+          change,
+          changePercent,
+          marketCap: 0,
+          pe: null,
+          eps: null,
+          fiftyTwoWeekHigh: Math.max(...highs),
+          fiftyTwoWeekLow: Math.min(...lows),
+          fiftyDayAvg: last.close,
+          twoHundredDayAvg: last.close,
+          dividendYield: null,
+          sector: 'Equities',
+          industry: 'Equities',
+          exchange: 'NSE',
+          currency: 'INR',
+        };
+        cache.set(cacheKey, fallback, 300);
+        return fallback;
+      }
+    } catch (fallbackErr) {
+      console.error(`[YahooFinance] Historical fallback failed for ${symbol}:`, fallbackErr.message);
+    }
     throw err;
   }
 }

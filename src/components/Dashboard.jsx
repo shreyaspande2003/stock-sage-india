@@ -102,24 +102,17 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
     setQuery(stock.symbol);
     setError('');
 
-    if (!isAIReady) {
-      if (settings.geminiKey) {
-        try {
-          await initAI(settings.geminiKey, settings.useProModel);
-          setIsAIReady(true);
-        } catch (e) {
-          setError('Failed to initialize AI. Check your OpenRouter API key in Settings.');
-          return;
-        }
-      } else {
-        setError('Please set your OpenRouter API key in Settings first.');
-        return;
+    // Try to auto-init AI if key is saved in settings, but do NOT block stock data/charts if key is absent
+    if (!isAIReady && settings.geminiKey) {
+      try {
+        await initAI(settings.geminiKey, settings.useProModel);
+        setIsAIReady(true);
+      } catch (e) {
+        console.warn('AI auto-init warning:', e.message);
       }
     }
 
     setAnalyzing(true);
-    setAnalyzing(true);
-    // Removed fake stage timers because we want to transition to StockAnalysis immediately after data is fetched.
 
     try {
       // Step 1: Fetch fast market data (quote, chart, news, reddit)
