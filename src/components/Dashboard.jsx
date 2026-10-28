@@ -12,6 +12,7 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
   const [swingPicks, setSwingPicks] = useState(null);
   const [marketRegime, setMarketRegime] = useState(null);
   const [backtestStats, setBacktestStats] = useState(null);
+  const [capFilter, setCapFilter] = useState('ALL');
   const [recentAnalyses, setRecentAnalyses] = useState(() => {
     const saved = localStorage.getItem('stocksage_recent');
     return saved ? JSON.parse(saved) : [];
@@ -270,62 +271,97 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
 
         {/* Swing Radar */}
         <div className="glass-card">
-          <h3 style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between' }}>
-            <span>🎯 Swing Radar V2</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <h3 style={{ margin: 0 }}>🎯 Swing Radar V2</h3>
             {swingPicks?.scannedAt && (
               <span className="text-muted" style={{ fontSize: '0.75rem', fontWeight: 'normal' }}>
                 {new Date(swingPicks.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
-          </h3>
+          </div>
+
+          {/* Market Cap Filter Tabs */}
+          <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+            {[
+              { id: 'ALL', label: 'All' },
+              { id: 'LARGE_CAP', label: '💎 Large' },
+              { id: 'MID_CAP', label: '🚀 Mid' },
+              { id: 'SMALL_CAP', label: '⚡ High-Beta' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setCapFilter(tab.id)}
+                style={{
+                  fontSize: '0.7rem',
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: '1rem',
+                  border: '1px solid var(--border-secondary)',
+                  cursor: 'pointer',
+                  background: capFilter === tab.id ? 'var(--accent-primary)' : 'rgba(255, 255, 255, 0.04)',
+                  color: capFilter === tab.id ? '#ffffff' : 'var(--text-secondary)',
+                  fontWeight: capFilter === tab.id ? 700 : 500,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           {!swingPicks ? (
-            <p className="text-muted text-sm">Scanning universe for setups...</p>
-          ) : (swingPicks.topLongs?.length === 0 && swingPicks.setups?.length > 0) ? (
-            <div>
-              <p className="text-muted text-sm" style={{ marginBottom: '0.75rem' }}>
-                {swingPicks.marketRegime?.regime === 'RISK_OFF' 
-                  ? 'Market regime is RISK_OFF. Cash protection active. Showing watchlisted candidates:'
-                  : 'Active setups on waitlist for trigger:'}
-              </p>
-              {swingPicks.setups.slice(0, 4).map((pick, i) => (
-                <div
-                  key={i}
-                  className="search-result-item"
-                  style={{ cursor: 'pointer', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid rgba(255,255,255,0.2)' }}
-                  onClick={() => handleSelectStock({ symbol: pick.symbol, name: pick.name })}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div className="search-result-symbol">{pick.symbol}</div>
-                      <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>Score {pick.qualityScore}/100</span>
-                    </div>
-                    <div className="text-xs text-muted" style={{ marginTop: '0.25rem' }}>
-                      {pick.setup.replace(/_/g, ' ')} • ₹{pick.price} • RS: {pick.rsRating || 50}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            swingPicks.topLongs?.map((pick, i) => (
+            <p className="text-muted text-sm">Scanning multi-cap universe for setups...</p>
+          ) : (() => {
+            const sourceList = (swingPicks.topLongs?.length > 0) ? swingPicks.topLongs : (swingPicks.setups || []);
+            const filtered = sourceList.filter(pick => capFilter === 'ALL' || pick.cap === capFilter);
+
+            if (filtered.length === 0) {
+              return (
+                <p className="text-muted text-sm">
+                  {swingPicks.marketRegime?.regime === 'RISK_OFF'
+                    ? `No ${capFilter === 'ALL' ? '' : capFilter.replace('_', ' ')} setups triggered. Cash protection active.`
+                    : 'No setups matching this market cap tier right now.'}
+                </p>
+              );
+            }
+
+            return filtered.slice(0, 6).map((pick, i) => (
               <div
                 key={i}
                 className="search-result-item"
-                style={{ cursor: 'pointer', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--color-buy)' }}
+                style={{
+                  cursor: 'pointer',
+                  borderRadius: 'var(--radius-sm)',
+                  borderLeft: `3px solid ${pick.tradeWorthy ? 'var(--color-buy)' : 'rgba(255,255,255,0.2)'}`,
+                  marginBottom: '0.4rem'
+                }}
                 onClick={() => handleSelectStock({ symbol: pick.symbol, name: pick.name })}
               >
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div className="search-result-symbol">{pick.symbol}</div>
-                    <div className="text-xs" style={{ color: 'var(--color-buy)' }}>Tgt: ₹{pick.t1}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="search-result-symbol">{pick.symbol}</span>
+                      <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-tertiary)' }}>
+                        {pick.cap === 'LARGE_CAP' ? 'Large' : pick.cap === 'MID_CAP' ? 'Mid' : 'Small'}
+                      </span>
+                      {pick.sector && (
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)' }}>
+                          • {pick.sector}
+                        </span>
+                      )}
+                    </div>
+                    <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>
+                      Score {pick.qualityScore}/100
+                    </span>
                   </div>
-                  <div className="text-xs text-muted" style={{ marginTop: '0.25rem' }}>
-                    {pick.setup.replace(/_/g, ' ')} • Score: {pick.qualityScore} • R/R: {pick.riskRewardT1}
+                  <div className="text-xs text-muted" style={{ marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{pick.setup?.replace(/_/g, ' ')} • ₹{pick.price}</span>
+                    {pick.t1 && <span style={{ color: 'var(--color-buy)' }}>Tgt: ₹{pick.t1}</span>}
                   </div>
                 </div>
               </div>
-            ))
-          )}
+            ));
+          })()}
         </div>
 
         {/* Quant Engine v2 Research Edge Card */}
