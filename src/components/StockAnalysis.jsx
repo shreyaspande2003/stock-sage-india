@@ -338,6 +338,28 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
               </div>
             </div>
 
+            {/* Smart Money Volume Footprint Notification (if accumulating) */}
+            {qc.smartMoney?.isAccumulating && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: '0.6rem 1rem',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                borderRadius: 'var(--radius-md)',
+                marginBottom: '1rem',
+                fontSize: '0.8rem',
+                color: 'var(--text-secondary)'
+              }}>
+                <span style={{ fontSize: '1.1rem' }}>🐋</span>
+                <div>
+                  <strong style={{ color: 'var(--color-buy)' }}>Smart Money Accumulation Detected: </strong>
+                  Up-day volume is {Number(qc.smartMoney.upDownVolRatio).toFixed(1)}x greater than down-days over past 20 sessions. Institutional absorption active.
+                </div>
+              </div>
+            )}
+
             {/* Actionable Plan Banner */}
             <div style={{
               padding: '1rem 1.25rem',
@@ -354,7 +376,7 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
             </div>
 
             {/* 3-Tile Trade Execution Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem', marginBottom: '1.25rem' }}>
               {/* Buy Zone */}
               <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-secondary)' }}>
                 <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Primary Buy Zone</div>
@@ -386,6 +408,98 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
                   {formatPrice(exec.stopLoss)}
                 </div>
                 <div className="text-xs text-muted">Risk:Reward: <strong className="font-mono" style={{ color: '#ffffff' }}>{exec.riskRewardRatio || '2.5:1'}</strong></div>
+              </div>
+            </div>
+
+            {/* ═══════ THE "FREE RIDE" PROFIT ESCALATOR & TRAILING ROADMAP ═══════ */}
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: 'var(--radius-md)',
+              padding: '1.25rem',
+              marginBottom: '1.5rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1rem' }}>🪜</span>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#ffffff' }}>
+                    THE "FREE RIDE" PROFIT ESCALATOR & TRAILING ROADMAP
+                  </span>
+                </div>
+                <span className="badge badge-neutral" style={{ fontSize: '0.62rem', color: 'var(--accent-cyan)', borderColor: 'rgba(6, 182, 212, 0.3)' }}>
+                  ZERO-RISK PROFIT LOCKING
+                </span>
+              </div>
+
+              {/* 4 Connected Phases Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                {/* Phase 1 */}
+                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.07)', borderRadius: 'var(--radius-sm)', padding: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(6, 182, 212, 0.2)', color: 'var(--accent-cyan)', fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>1</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Entry & Risk Cap</span>
+                  </div>
+                  <div className="font-mono" style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', marginBottom: '0.25rem' }}>
+                    {exec.entryZone || formatPrice(exec.entryPrice)}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-sell)', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Hard Stop: {formatPrice(exec.stopLoss)} ({exec.riskPct || '-3.5%'})
+                  </div>
+                  <p className="text-muted text-xs" style={{ margin: 0, lineHeight: 1.35, fontSize: '0.68rem' }}>
+                    Enter with predefined ATR risk. Never chase price beyond +2.5% of the pivot ceiling.
+                  </p>
+                </div>
+
+                {/* Phase 2 */}
+                <div style={{ background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: 'var(--radius-sm)', padding: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.2)', color: 'var(--color-buy)', fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>2</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-buy)' }}>Bank 50% at Target 1</span>
+                  </div>
+                  <div className="font-mono" style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-buy)', marginBottom: '0.25rem' }}>
+                    {formatPrice(exec.target1)} ({exec.target1Return || '+10%'})
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Action: Sell 50% of Shares
+                  </div>
+                  <p className="text-muted text-xs" style={{ margin: 0, lineHeight: 1.35, fontSize: '0.68rem' }}>
+                    Lock in mathematical profit into cash. Guarantees this swing trade cannot become a loser.
+                  </p>
+                </div>
+
+                {/* Phase 3 */}
+                <div style={{ background: 'rgba(139, 92, 246, 0.04)', border: '1px solid rgba(139, 92, 246, 0.25)', borderRadius: 'var(--radius-sm)', padding: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(139, 92, 246, 0.2)', color: '#c084fc', fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>3</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#c084fc' }}>Ratchet to Breakeven</span>
+                  </div>
+                  <div className="font-mono" style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', marginBottom: '0.25rem' }}>
+                    {formatPrice(exec.entryPrice)} (Cost)
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700, marginBottom: '0.35rem' }}>
+                    100% Risk-Free "House Money"
+                  </div>
+                  <p className="text-muted text-xs" style={{ margin: 0, lineHeight: 1.35, fontSize: '0.68rem' }}>
+                    Move Stop Loss up to exact entry price. Remaining 50% position now has ₹0 downside risk.
+                  </p>
+                </div>
+
+                {/* Phase 4 */}
+                <div style={{ background: 'rgba(245, 158, 11, 0.04)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: 'var(--radius-sm)', padding: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>4</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fbbf24' }}>Super Runner Trail</span>
+                  </div>
+                  <div className="font-mono" style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff', marginBottom: '0.25rem' }}>
+                    10 EMA: {formatPrice(exec.ema10Trail || technicals?.indicators?.ema?.ema9 || (quote?.price * 0.98))}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginBottom: '0.35rem' }}>
+                    20 EMA: {formatPrice(exec.ema21Trail || technicals?.indicators?.ema?.ema21 || (quote?.price * 0.95))}
+                  </div>
+                  <p className="text-muted text-xs" style={{ margin: 0, lineHeight: 1.35, fontSize: '0.68rem' }}>
+                    Trail remaining half on daily 10 EMA. Exit only on daily close below EMA. Catches +20% to +80% monster swings!
+                  </p>
+                </div>
               </div>
             </div>
 

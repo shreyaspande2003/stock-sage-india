@@ -22,7 +22,34 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
   });
   const [error, setError] = useState('');
   const searchRef = useRef(null);
-  const debounceRef = useRef(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // High-fidelity institutional chime using native Web Audio API
+  const playBreakoutChime = () => {
+    if (!soundEnabled) return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, now); // D5
+      osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.12); // A5
+      osc.frequency.exponentialRampToValueAtTime(1174.66, now + 0.24); // D6
+      
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.2, now + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.7);
+    } catch(e) {}
+  };
 
   // Check AI status on mount and auto-init if key exists
   useEffect(() => {
@@ -45,7 +72,12 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
   useEffect(() => {
     getMarketNews().then(data => setMarketNews(data.news || [])).catch(() => {});
     scanSwingSetups().then(data => setSwingPicks(data)).catch(() => {});
-    getMorningTriggers().then(data => setMorningData(data)).catch(() => {});
+    getMorningTriggers().then(data => {
+      setMorningData(data);
+      if (data?.counts?.ep > 0 || data?.counts?.fired > 0) {
+        playBreakoutChime();
+      }
+    }).catch(() => {});
     getMarketRegime().then(data => setMarketRegime(data)).catch(() => {});
     getBacktestResults().then(data => setBacktestStats(data)).catch(() => {});
   }, []);
@@ -55,6 +87,9 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
     try {
       const data = await getMorningTriggers();
       setMorningData(data);
+      if (data?.counts?.ep > 0 || data?.counts?.fired > 0) {
+        playBreakoutChime();
+      }
     } catch (e) {
       console.error('Failed to refresh morning triggers:', e);
     }
@@ -359,6 +394,28 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
             </span>
             <button
               type="button"
+              onClick={() => {
+                const next = !soundEnabled;
+                setSoundEnabled(next);
+                if (next) playBreakoutChime();
+              }}
+              style={{
+                background: soundEnabled ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                border: soundEnabled ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border-secondary)',
+                borderRadius: 'var(--radius-sm)',
+                color: soundEnabled ? 'var(--color-buy)' : 'var(--text-tertiary)',
+                fontSize: '0.75rem',
+                padding: '0.25rem 0.65rem',
+                cursor: 'pointer',
+                fontWeight: 600,
+                transition: 'all 0.2s ease'
+              }}
+              title="Toggle audio chime alert on breakout trigger"
+            >
+              {soundEnabled ? '🔔 Chime: ON' : '🔕 Chime: OFF'}
+            </button>
+            <button
+              type="button"
               onClick={refreshMorningTriggers}
               disabled={morningLoading}
               style={{
@@ -379,13 +436,14 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
         </div>
 
         <p className="text-muted text-xs" style={{ margin: '0 0 1rem 0' }}>
-          Identifies <strong>Day T-1 Volatility Compression (VCP)</strong> and detects immediate breakout ignition when morning institutional volume surges past the pivot ceiling. Designed to catch fast +10% to +16% single-day moves at ₹202 instead of chasing at ₹231.
+          Identifies <strong>Episodic Pivots (EP Runners)</strong> & <strong>Day T-1 Volatility Compression (VCP)</strong> to detect immediate breakout ignition when institutional volume surges past the pivot ceiling. Designed to catch fast +10% to +18% moves early.
         </p>
 
         {/* Filter Pills */}
         <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
           {[
             { id: 'ALL', label: `All Alerts (${morningData?.allPrioritized?.length || 0})` },
+            { id: 'EPISODIC_PIVOT', label: `💥 Episodic Pivots (${morningData?.counts?.ep || 0})` },
             { id: 'FIRED', label: `🚀 Fired (Buy Zone) (${morningData?.counts?.fired || 0})` },
             { id: 'ARMED', label: `⏳ Coiled Springs (${morningData?.counts?.armed || 0})` },
             { id: 'EXTENDED', label: `⚡ Extended (+10% Hit) (${morningData?.counts?.extended || 0})` },
@@ -420,6 +478,7 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
         ) : (() => {
           let list = [];
           if (morningFilter === 'ALL') list = morningData.allPrioritized || [];
+          else if (morningFilter === 'EPISODIC_PIVOT') list = morningData.ep || [];
           else if (morningFilter === 'FIRED') list = morningData.fired || [];
           else if (morningFilter === 'ARMED') list = morningData.armed || [];
           else if (morningFilter === 'EXTENDED') list = morningData.extended || [];
@@ -428,7 +487,9 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
             return (
               <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
                 <p className="text-muted text-xs" style={{ margin: 0 }}>
-                  {morningFilter === 'FIRED'
+                  {morningFilter === 'EPISODIC_PIVOT'
+                    ? 'No stocks currently exhibit an active Episodic Pivot (>4% gap with >2x volume pace). Check Coiled Springs.'
+                    : morningFilter === 'FIRED'
                     ? 'No stocks are currently in the immediate 0-4.5% Breakout Buy Zone with >1.6x volume pace. Check Armed Coiled Springs below.'
                     : morningFilter === 'ARMED'
                     ? 'No coiled spring setups within 3.5% of pivot right now.'

@@ -250,7 +250,49 @@ function calculateQuantConsensus(quote, technicals, historical = [], swingPlaybo
       stopLoss,
       riskPct: `-${riskPct}%`,
       riskRewardRatio: `${rrRatio}:1`,
-      recommendedShares: swingPlaybook?.position?.shares || 0
+      recommendedShares: swingPlaybook?.position?.shares || 0,
+      ema10Trail: round(ind.ema?.ema9 || ema20 || entryPrice * 0.98),
+      ema21Trail: round(ind.ema?.ema21 || ema50 || entryPrice * 0.96)
+    },
+    smartMoney: {
+      isAccumulating: (ind.volume?.upDownVolRatio || 1.2) >= 1.25 || volumePace >= 1.5,
+      upDownVolRatio: ind.volume?.upDownVolRatio || 1.2,
+      volumePace,
+      badge: (ind.volume?.upDownVolRatio || 1.2) >= 1.4 ? '🔥 STRONG ACCUMULATION' : (ind.volume?.upDownVolRatio || 1.2) >= 1.15 ? 'INSTITUTIONAL BUYING' : 'NEUTRAL / MIXED',
+      note: (ind.volume?.upDownVolRatio || 1.2) >= 1.25
+        ? `Up-session volume is ${(ind.volume?.upDownVolRatio || 1.2).toFixed(2)}x greater than down-sessions over last 20 days (Institutional Footprint).`
+        : 'Session volume tracking within standard retail distribution boundaries.'
+    },
+    freeRideRoadmap: {
+      phase1: {
+        step: 1,
+        title: 'Phase 1: Entry & Hard Invalidation',
+        price: `₹${entryPrice} – ₹${round(entryPrice * 1.025)}`,
+        stop: `₹${stopLoss}`,
+        riskPct: `-${riskPct}%`,
+        rule: 'Execute in primary buy zone with hard ATR stop. Do not chase above +2.5%.'
+      },
+      phase2: {
+        step: 2,
+        title: 'Phase 2: Bank 50% Profit at Target 1',
+        price: `₹${target1}`,
+        targetPct: `+${returnT1Pct}%`,
+        rule: 'Sell 50% of your position. Secures net gains regardless of future market volatility.'
+      },
+      phase3: {
+        step: 3,
+        title: 'Phase 3: Ratchet Stop to Breakeven',
+        price: `₹${entryPrice}`,
+        status: '100% Risk-Free Trade',
+        rule: 'Move Stop Loss up to exact Entry Price. The position is now running entirely on "House Money".'
+      },
+      phase4: {
+        step: 4,
+        title: 'Phase 4: Super Runner Trail (10 & 20 EMA)',
+        trail10: round(ind.ema?.ema9 || ema20 || entryPrice * 0.98),
+        trail21: round(ind.ema?.ema21 || ema50 || entryPrice * 0.96),
+        rule: 'Ride the remaining 50% shares until a daily bar closes below the 10 EMA (aggressive) or 20 EMA (multi-week runner). This catches +25% to +80% monster legs!'
+      }
     },
     pillars: [
       {

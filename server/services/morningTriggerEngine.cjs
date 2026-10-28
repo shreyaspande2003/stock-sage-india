@@ -111,16 +111,25 @@ async function analyzeStockTrigger(item, sessionInfo) {
 
   const isCompressed = bbWidth <= 18; // Strict squeeze
   const isModerateCoil = bbWidth <= 24;
+  const isGapIgnition = (changePercent >= 4.5 || ((currentPrice - prevBar.close) / prevBar.close) * 100 >= 3.5) && (volPaceRatio >= 2.0 || rawVolRatio >= 2.0);
 
+  // 0. EPISODIC PIVOT (EP): Qullamaggie super runner (High gap + institutional volume explosion)
+  if (isGapIgnition) {
+    status = 'EPISODIC_PIVOT';
+    statusLabel = '💥 EPISODIC PIVOT (SUPER RUNNER)';
+    badgeClass = 'badge-strong-buy';
+    priority = 0;
+    actionText = `Episodic Pivot active! Massive ${volPaceRatio}x volume explosion. Qullamaggie rule: Invalidation stop at Day Low ₹${round(quote.dayLow || currentPrice * 0.975)}. Sell 1/2 at Target ₹${target1} (+10%), trail rest on 10 EMA!`;
+  }
   // 1. FIRED: Price breached pivot, within +4.5% buy zone, volume expanding
-  if (currentPrice >= pivot && distFromPivotPct <= 4.5 && (volPaceRatio >= 1.6 || rawVolRatio >= 1.6)) {
+  else if (currentPrice >= pivot && distFromPivotPct <= 4.5 && (volPaceRatio >= 1.6 || rawVolRatio >= 1.6)) {
     status = 'FIRED';
     statusLabel = '🚀 FIRED (IN BUY ZONE)';
     badgeClass = 'badge-strong-buy';
     priority = 1;
     actionText = `Breakout active! Breached ₹${pivot} with ${volPaceRatio}x volume pace. Entry Zone: ₹${pivot} - ₹${round(pivot * 1.025)}. Target: ₹${target1} (+10%).`;
   }
-  // 2. EXTENDED: Up > 4.5% from pivot (e.g. Piramal Pharma +16%)
+  // 2. EXTENDED: Up > 4.5% from pivot
   else if (currentPrice >= pivot && distFromPivotPct > 4.5) {
     status = 'EXTENDED';
     statusLabel = '⚡ EXTENDED (+10% HIT)';
@@ -192,24 +201,27 @@ async function getMorningBreakoutTriggers(tier = 'PRO') {
   const valid = results.filter(Boolean);
 
   // Group by status
+  const ep = valid.filter(r => r.status === 'EPISODIC_PIVOT').sort((a, b) => b.volPaceRatio - a.volPaceRatio);
   const fired = valid.filter(r => r.status === 'FIRED').sort((a, b) => b.volPaceRatio - a.volPaceRatio);
   const armed = valid.filter(r => r.status === 'ARMED').sort((a, b) => a.bbWidth - b.bbWidth);
   const extended = valid.filter(r => r.status === 'EXTENDED').sort((a, b) => b.distFromPivotPct - a.distFromPivotPct);
   const watching = valid.filter(r => r.status === 'WATCH').sort((a, b) => a.bbWidth - b.bbWidth);
 
-  // All prioritized items
-  const allPrioritized = [...fired, ...armed, ...extended, ...watching];
+  // All prioritized items (Episodic Pivots first!)
+  const allPrioritized = [...ep, ...fired, ...armed, ...extended, ...watching];
 
   const payload = {
     updatedAt: new Date().toISOString(),
     sessionInfo,
     counts: {
       totalScanned: universe.length,
+      ep: ep.length,
       fired: fired.length,
       armed: armed.length,
       extended: extended.length,
       watching: watching.length
     },
+    ep,
     fired,
     armed,
     extended,
