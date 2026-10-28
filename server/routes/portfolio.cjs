@@ -6,10 +6,137 @@ const { parse } = require('csv-parse/sync');
 const { aggregateStockData } = require('../services/dataAggregator.cjs');
 const { isInitialized, runExpertPipeline } = require('../services/aiEngine.cjs');
 const yahooFinance = require('../services/yahooFinance.cjs');
+const { UNIVERSE_200 } = require('../config/universe200.cjs');
 
 // Configure multer for file upload
 const storage = multer.memoryStorage();
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB max
+
+// Build quick lookup map for symbols to sectors and market caps
+const SECTOR_MAP = {};
+UNIVERSE_200.forEach(item => {
+  SECTOR_MAP[item.symbol.toUpperCase()] = { sector: item.sector, name: item.name, cap: item.cap };
+});
+
+// Shared pipeline to enrich holdings with live quotes, sector mapping, and institutional quant badges
+async function processEnrichedPortfolio(holdings) {
+  const { mapPool } = require('../utils/pool.cjs');
+  const enrichedHoldings = await mapPool(holdings, 4, async (holding) => {
+    const sym = holding.symbol.toUpperCase();
+    const meta = SECTOR_MAP[sym] || {};
+    try {
+      const quote = await yahooFinance.getQuote(sym);
+      const currentPrice = quote.price || holding.buyPrice;
+      const currentValue = currentPrice * holding.quantity;
+      const investedValue = holding.buyPrice * holding.quantity;
+      const pnl = currentValue - investedValue;
+      const pnlPercent = investedValue > 0 ? ((pnl / investedValue) * 100) : 0;
+      const roundedPnlPct = Math.round(pnlPercent * 100) / 100;
+
+      // Institutional quant action & levels
+      const targetPrice = Math.round(holding.buyPrice * 1.08 * 10) / 10;
+      const stopLossPrice = Math.round(holding.buyPrice * 0.94 * 10) / 10;
+      let quantAction = {
+        badge: 'HOLD_IN_BASE',
+        label: 'HOLD BASE',
+        variant: 'cyan',
+        detail: 'Position within normal noise tolerance (-3% to +6%). Hold base and let setup develop.',
+      };
+
+      if (roundedPnlPct >= 12) {
+        quantAction = {
+          badge: 'RIDE_RUNNER',
+          label: 'RIDE RUNNER',
+          variant: 'success',
+          detail: `Up +${roundedPnlPct}%. Super-winner status. Trail stop up to 20-EMA / ₹${Math.round(currentPrice * 0.93)} to capture multi-week trend.`,
+        };
+      } else if (roundedPnlPct >= 7) {
+        quantAction = {
+          badge: 'BANK_PROFIT_T1',
+          label: 'BOOK 50% (T1)',
+          variant: 'emerald',
+          detail: `Up +${roundedPnlPct}%. Swing Target 1 reached. Sell 50% shares at market to bank gains; move stop on remaining 50% to Breakeven (₹${holding.buyPrice}).`,
+        };
+      } else if (roundedPnlPct <= -5.5) {
+        quantAction = {
+          badge: 'CUT_LOSS',
+          label: 'CUT LOSS',
+          variant: 'danger',
+          detail: `Down ${roundedPnlPct}%. Swing risk threshold (-5.5% to -6%) breached. Exit immediately to preserve trading equity.`,
+        };
+      }
+
+      return {
+        ...holding,
+        name: quote.name || meta.name || sym,
+        sector: meta.sector || quote.sector || 'Equities',
+        cap: meta.cap || 'MID_CAP',
+        currentPrice,
+        currentValue,
+        investedValue,
+        pnl,
+        pnlPercent: roundedPnlPct,
+        dayChange: quote.changePercent || 0,
+        targetPrice,
+        stopLossPrice,
+        quantAction,
+      };
+    } catch (err) {
+      const investedValue = holding.buyPrice * holding.quantity;
+      return {
+        ...holding,
+        name: meta.name || sym,
+        sector: meta.sector || 'Equities',
+        cap: meta.cap || 'MID_CAP',
+        error: `Could not fetch live quote for ${sym}`,
+        currentPrice: holding.buyPrice,
+        currentValue: investedValue,
+        investedValue,
+        pnl: 0,
+        pnlPercent: 0,
+        dayChange: 0,
+        targetPrice: Math.round(holding.buyPrice * 1.08),
+        stopLossPrice: Math.round(holding.buyPrice * 0.94),
+        quantAction: {
+          badge: 'HOLD_IN_BASE',
+          label: 'HOLD BASE',
+          variant: 'cyan',
+          detail: 'No live quote available; maintaining cost-basis stop and target.',
+        },
+      };
+    }
+  });
+
+  const totalInvested = enrichedHoldings.reduce((sum, h) => sum + h.investedValue, 0);
+  const totalCurrent = enrichedHoldings.reduce((sum, h) => sum + h.currentValue, 0);
+  const totalPnl = totalCurrent - totalInvested;
+  const totalPnlPercent = totalInvested > 0 ? ((totalPnl / totalInvested) * 100) : 0;
+
+  // Real sector breakdown
+  const sectorSums = {};
+  for (const h of enrichedHoldings) {
+    const s = h.sector || 'Equities';
+    sectorSums[s] = (sectorSums[s] || 0) + h.currentValue;
+  }
+  const sectorAllocation = Object.entries(sectorSums).map(([sector, val]) => ({
+    sector,
+    percentage: totalCurrent > 0 ? Math.round((val / totalCurrent) * 100) : 0,
+  })).sort((a, b) => b.percentage - a.percentage);
+
+  return {
+    holdings: enrichedHoldings,
+    summary: {
+      totalHoldings: enrichedHoldings.length,
+      totalInvested: Math.round(totalInvested),
+      totalCurrentValue: Math.round(totalCurrent),
+      totalPnl: Math.round(totalPnl),
+      totalPnlPercent: Math.round(totalPnlPercent * 100) / 100,
+      sectorAllocation,
+      topGainer: enrichedHoldings.reduce((best, h) => h.pnlPercent > (best?.pnlPercent || -Infinity) ? h : best, null),
+      topLoser: enrichedHoldings.reduce((worst, h) => h.pnlPercent < (worst?.pnlPercent || Infinity) ? h : worst, null),
+    },
+  };
+}
 
 // Upload and parse portfolio CSV
 router.post('/upload', upload.single('portfolio'), async (req, res) => {
@@ -49,59 +176,37 @@ router.post('/upload', upload.single('portfolio'), async (req, res) => {
       });
     }
 
-    const { mapPool } = require('../utils/pool.cjs');
-    const enrichedHoldings = await mapPool(holdings, 4, async (holding) => {
-      try {
-        const quote = await yahooFinance.getQuote(holding.symbol);
-        const currentValue = quote.price * holding.quantity;
-        const investedValue = holding.buyPrice * holding.quantity;
-        const pnl = currentValue - investedValue;
-        const pnlPercent = investedValue > 0 ? ((pnl / investedValue) * 100) : 0;
-
-        return {
-          ...holding,
-          name: quote.name,
-          currentPrice: quote.price,
-          currentValue,
-          investedValue,
-          pnl,
-          pnlPercent: Math.round(pnlPercent * 100) / 100,
-          dayChange: quote.changePercent,
-        };
-      } catch (err) {
-        return {
-          ...holding,
-          error: `Could not fetch data for ${holding.symbol}`,
-          currentPrice: 0,
-          currentValue: 0,
-          investedValue: holding.buyPrice * holding.quantity,
-          pnl: 0,
-          pnlPercent: 0,
-        };
-      }
-    });
-
-    // Portfolio summary
-    const totalInvested = enrichedHoldings.reduce((sum, h) => sum + h.investedValue, 0);
-    const totalCurrent = enrichedHoldings.reduce((sum, h) => sum + h.currentValue, 0);
-    const totalPnl = totalCurrent - totalInvested;
-    const totalPnlPercent = totalInvested > 0 ? ((totalPnl / totalInvested) * 100) : 0;
-
-    res.json({
-      holdings: enrichedHoldings,
-      summary: {
-        totalHoldings: enrichedHoldings.length,
-        totalInvested: Math.round(totalInvested),
-        totalCurrentValue: Math.round(totalCurrent),
-        totalPnl: Math.round(totalPnl),
-        totalPnlPercent: Math.round(totalPnlPercent * 100) / 100,
-        topGainer: enrichedHoldings.reduce((best, h) => h.pnlPercent > (best?.pnlPercent || -Infinity) ? h : best, null),
-        topLoser: enrichedHoldings.reduce((worst, h) => h.pnlPercent < (worst?.pnlPercent || Infinity) ? h : worst, null),
-      },
-    });
+    const result = await processEnrichedPortfolio(holdings);
+    res.json(result);
   } catch (err) {
     console.error('[Portfolio] Upload error:', err.message);
     res.status(500).json({ error: 'Failed to parse portfolio CSV: ' + err.message });
+  }
+});
+
+// Manual portfolio submission or real-time refresh
+router.post('/manual', async (req, res) => {
+  try {
+    const { holdings } = req.body;
+    if (!holdings || !Array.isArray(holdings) || holdings.length === 0) {
+      return res.status(400).json({ error: 'Holdings array is required' });
+    }
+    const cleanHoldings = holdings.map(h => ({
+      symbol: (h.symbol || '').toUpperCase().trim(),
+      quantity: parseFloat(h.quantity) || 0,
+      buyPrice: parseFloat(h.buyPrice) || 0,
+      buyDate: h.buyDate || new Date().toISOString().split('T')[0],
+    })).filter(h => h.symbol && h.quantity > 0);
+
+    if (cleanHoldings.length === 0) {
+      return res.status(400).json({ error: 'No valid holdings provided with quantity > 0' });
+    }
+
+    const result = await processEnrichedPortfolio(cleanHoldings);
+    res.json(result);
+  } catch (err) {
+    console.error('[Portfolio] Manual entry error:', err.message);
+    res.status(500).json({ error: 'Failed to process portfolio: ' + err.message });
   }
 });
 
@@ -152,47 +257,103 @@ function generateDeterministicPortfolioAnalysis(holdings, totalInvested, totalCu
   const losers = holdings.filter(h => (h.pnl || (h.currentPrice - h.buyPrice) * h.quantity) < 0);
   const healthScore = Math.min(95, Math.max(35, Math.round(55 + (pnlPct * 1.2) + (winners.length >= losers.length ? 10 : -10))));
 
+  // Dynamic real sector allocation calculation
+  const sectorSums = {};
+  for (const h of holdings) {
+    const s = h.sector || SECTOR_MAP[h.symbol?.toUpperCase()]?.sector || 'Equities';
+    const val = h.currentValue || (h.currentPrice * h.quantity) || 0;
+    sectorSums[s] = (sectorSums[s] || 0) + val;
+  }
+  const sectorAllocation = Object.entries(sectorSums).map(([sector, val]) => ({
+    sector,
+    percentage: totalCurrent > 0 ? Math.round((val / totalCurrent) * 100) : 0,
+  })).sort((a, b) => b.percentage - a.percentage);
+
+  const topSector = sectorAllocation[0];
+  const sectorConcentration = topSector && topSector.percentage >= 35
+    ? `High single-sector risk: ${topSector.sector} accounts for ${topSector.percentage}% of total portfolio value. Limit any one sector to <= 25-30%.`
+    : holdings.length < 4
+    ? 'Under-diversified (< 4 stocks). Vulnerable to idiosyncratic stock gaps. Target 6-8 positions across distinct sectors.'
+    : `Well balanced. Top sector (${topSector ? topSector.sector : 'General'}) represents ${topSector ? topSector.percentage : 0}% of portfolio.`;
+
   const profitBooking = winners.filter(w => (w.pnlPercent || 0) >= 7).map(w => ({
     symbol: w.symbol,
-    action: 'SCALE_OUT_50_PCT',
+    action: (w.pnlPercent || 0) >= 12 ? 'TRAIL_STOP_20EMA' : 'SCALE_OUT_50_PCT',
     targetPrice: Math.round(w.currentPrice * 1.05),
-    quantity: 'Sell 50% shares',
-    reasoning: `Up +${(w.pnlPercent || 0).toFixed(1)}%. Bank half the gains to lock in profits; move stop on remainder to breakeven.`
+    quantity: (w.pnlPercent || 0) >= 12 ? 'Keep 100% with trailing stop' : 'Sell 50% shares',
+    reasoning: (w.pnlPercent || 0) >= 12
+      ? `Runner position up +${(w.pnlPercent || 0).toFixed(1)}%. Trail stop to 20-DMA (₹${Math.round(w.currentPrice * 0.93)}) to milk trend without capping upside.`
+      : `Swing Target 1 reached (+${(w.pnlPercent || 0).toFixed(1)}%). Bank half gains to secure positive expectancy, move stop on rest to breakeven.`
   }));
 
   const lossCutting = losers.filter(l => (l.pnlPercent || 0) <= -5.5).map(l => ({
     symbol: l.symbol,
-    action: 'CUT_LOSS',
-    reasoning: `Down ${(l.pnlPercent || 0).toFixed(1)}%. Breached standard 5-6% swing stop threshold; preserve capital.`
+    action: 'CUT_LOSS_IMMEDIATELY',
+    reasoning: `Position down ${(l.pnlPercent || 0).toFixed(1)}%. Violates strict -5.5% swing stop rule. Cut now to prevent single-stock ruin.`
   }));
 
   const rebalance = holdings.map(h => {
     const val = h.currentValue || (h.currentPrice * h.quantity);
     const alloc = totalCurrent > 0 ? (val / totalCurrent) * 100 : 0;
+    let direction = 'HOLD';
+    let targetAllocation = `${Math.round(alloc)}%`;
+    let reasoning = 'Allocation healthy within risk boundaries.';
+
+    if (alloc > 25) {
+      direction = 'DECREASE';
+      targetAllocation = 'Trim to 15-20%';
+      reasoning = `Overweight: Single stock represents ${Math.round(alloc)}% of equity (institutional limit is 20%).`;
+    } else if ((h.pnlPercent || 0) <= -5.5) {
+      direction = 'EXIT';
+      targetAllocation = '0%';
+      reasoning = 'Stop loss breached. Exit position to preserve cash.';
+    } else if ((h.pnlPercent || 0) >= 8) {
+      direction = 'TRIM_TO_LOCK';
+      targetAllocation = `${Math.max(5, Math.round(alloc * 0.5))}%`;
+      reasoning = 'Bank 50% partial profit and let remaining ride.';
+    }
+
     return {
       symbol: h.symbol,
-      direction: alloc > 25 ? 'DECREASE' : (h.pnlPercent || 0) > 0 ? 'HOLD' : 'EXIT',
-      targetAllocation: alloc > 25 ? 'Max 15%' : `${Math.round(alloc)}%`,
-      reasoning: alloc > 25 ? 'Exceeds 25% single-stock concentration limit.' : 'Holding within risk boundaries.'
+      direction,
+      targetAllocation,
+      reasoning
     };
   });
 
+  // Suggest complementary stocks from underrepresented sectors
+  const existingSectors = new Set(sectorAllocation.map(s => s.sector.toLowerCase()));
+  const suggestedNewStocks = [];
+  if (!existingSectors.has('it')) {
+    suggestedNewStocks.push({ symbol: 'INFY', reasoning: 'Add IT sector exposure with solid relative strength and healthy dividend yield.', suggestedEntry: 'On breakout above 20-EMA' });
+  }
+  if (!existingSectors.has('banking')) {
+    suggestedNewStocks.push({ symbol: 'HDFCBANK', reasoning: 'Nifty heavy-weight private banking anchor with low volatility.', suggestedEntry: 'Near 50-DMA support' });
+  }
+  if (!existingSectors.has('telecom') && !existingSectors.has('infra')) {
+    suggestedNewStocks.push({ symbol: 'BHARTIARTL', reasoning: 'Top momentum leader with defensive pricing power in telecom.', suggestedEntry: 'Dip to 20-EMA' });
+  }
+  if (suggestedNewStocks.length === 0) {
+    suggestedNewStocks.push(
+      { symbol: 'LT', reasoning: 'Capital goods & infra flagship benefiting from Indian capex cycle.', suggestedEntry: 'On fresh swing consolidation breakout' },
+      { symbol: 'SUNPHARMA', reasoning: 'Pharma defensive hedge providing decorrelation from broad market swings.', suggestedEntry: 'Retest of previous resistance' }
+    );
+  }
+
   return {
     portfolioHealthScore: healthScore,
-    overallAssessment: `Portfolio valuation: ₹${Math.round(totalCurrent).toLocaleString('en-IN')} with overall P&L of ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%. ${winners.length} winners, ${losers.length} losers across ${holdings.length} holdings.`,
-    sectorConcentration: holdings.length <= 3 ? 'High concentration risk (< 4 stocks)' : 'Diversified across multi-cap holdings.',
-    sectorAllocation: [{ sector: 'Equities', percentage: 100 }],
+    overallAssessment: `Portfolio valuation: ₹${Math.round(totalCurrent).toLocaleString('en-IN')} with net P&L of ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%. ${winners.length} winning positions, ${losers.length} losing positions across ${holdings.length} holdings.`,
+    sectorConcentration,
+    sectorAllocation,
     profitBookingActions: profitBooking,
     lossCuttingActions: lossCutting,
     rebalanceActions: rebalance,
-    suggestedNewStocks: [
-      { symbol: 'INFY', reasoning: 'Leading IT momentum with positive relative strength vs NIFTY 50', suggestedEntry: 'On breakout above 20-EMA' },
-      { symbol: 'BHARTIARTL', reasoning: 'High-conviction defensive large-cap momentum leader', suggestedEntry: 'Near 20-DMA pullback' }
-    ],
-    overallStrategy: `Maintain discipline on loss limits (-5% to -7% max) while letting winners ride via trailing stops. Bank partial gains on positions showing +7% or higher return.`,
+    suggestedNewStocks,
+    overallStrategy: `Maintain asymmetric risk/reward: Cut any holding that hits -5.5% to -6% without hesitation. On winners above +7%, sell 50% shares to lock in gains and ratchet stop on remainder to breakeven. Cap single-stock exposure at 20% of total capital.`,
     riskWarnings: [
       `Overall portfolio P&L: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`,
-      pnlPct < -5 ? 'Capital preservation alert: Cut losing positions to prevent drawdown expansion.' : 'Trailing stops active on winning positions.'
+      pnlPct < -5 ? 'Drawdown alert: Multiple positions are in drawdown. Halt new buys until market regime stabilizes.' : 'Capital preservation rules active: stops strictly enforced.',
+      topSector && topSector.percentage >= 35 ? `Concentration alert: ${topSector.sector} sector is ${topSector.percentage}% of your capital.` : 'Sector spread is within standard guidelines.'
     ]
   };
 }

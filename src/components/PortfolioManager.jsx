@@ -1,8 +1,18 @@
-import React, { useState, useRef } from 'react';
-import { uploadPortfolio, analyzeHolding, analyzePortfolio } from '../api.js';
+import React, { useState, useEffect, useRef } from 'react';
+import { uploadPortfolio, submitManualPortfolio, analyzeHolding, analyzePortfolio } from '../api.js';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
-const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316'];
+const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#14b8a6', '#f97316'];
+
+const SAMPLE_HOLDINGS = [
+  { symbol: 'RELIANCE', quantity: 10, buyPrice: 2850, buyDate: '2024-03-01' },
+  { symbol: 'TCS', quantity: 6, buyPrice: 3820, buyDate: '2024-04-15' },
+  { symbol: 'INFY', quantity: 15, buyPrice: 1460, buyDate: '2024-05-10' },
+  { symbol: 'BHARTIARTL', quantity: 12, buyPrice: 1580, buyDate: '2024-06-20' },
+  { symbol: 'HDFCBANK', quantity: 8, buyPrice: 1640, buyDate: '2024-02-15' },
+];
+
+const QUICK_SYMBOLS = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'BHARTIARTL', 'LT', 'ICICIBANK', 'SUNPHARMA', 'TATAMOTORS'];
 
 export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
   const [portfolio, setPortfolio] = useState(null);
@@ -12,7 +22,132 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
   const [portfolioAI, setPortfolioAI] = useState(null);
   const [analyzingPortfolio, setAnalyzingPortfolio] = useState(false);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('manual'); // 'manual' | 'csv'
+
+  // Manual Form inputs
+  const [manualSymbol, setManualSymbol] = useState('');
+  const [manualQty, setManualQty] = useState('');
+  const [manualBuyPrice, setManualBuyPrice] = useState('');
+  const [manualBuyDate, setManualBuyDate] = useState(() => new Date().toISOString().split('T')[0]);
+
   const fileRef = useRef(null);
+
+  // Auto-load portfolio from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('stocksage_active_portfolio');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          syncHoldings(parsed);
+        }
+      } catch (err) {
+        console.error('Failed to parse saved portfolio:', err);
+      }
+    }
+  }, []);
+
+  // Synchronize holdings with backend to get live prices & quant badges
+  const syncHoldings = async (holdingsList) => {
+    if (!holdingsList || holdingsList.length === 0) {
+      setPortfolio(null);
+      setPortfolioAI(null);
+      localStorage.removeItem('stocksage_active_portfolio');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      const data = await submitManualPortfolio(holdingsList);
+      setPortfolio(data);
+      // Persist raw holdings in localStorage
+      const minimal = holdingsList.map(h => ({
+        symbol: h.symbol.toUpperCase().trim(),
+        quantity: Number(h.quantity),
+        buyPrice: Number(h.buyPrice),
+        buyDate: h.buyDate || new Date().toISOString().split('T')[0],
+      }));
+      localStorage.setItem('stocksage_active_portfolio', JSON.stringify(minimal));
+    } catch (err) {
+      setError(err.message || 'Failed to update portfolio holdings');
+    }
+    setLoading(false);
+  };
+
+  const handleManualAdd = (e) => {
+    e.preventDefault();
+    const sym = manualSymbol.toUpperCase().trim();
+    const qty = parseFloat(manualQty);
+    const price = parseFloat(manualBuyPrice);
+
+    if (!sym) {
+      setError('Please enter a valid stock symbol (e.g. RELIANCE, TCS)');
+      return;
+    }
+    if (!qty || qty <= 0) {
+      setError('Quantity must be greater than 0');
+      return;
+    }
+    if (!price || price <= 0) {
+      setError('Buy price must be greater than 0');
+      return;
+    }
+
+    const currentHoldings = portfolio?.holdings ? [...portfolio.holdings] : [];
+    const existingIdx = currentHoldings.findIndex(h => h.symbol.toUpperCase() === sym);
+
+    let updated = [];
+    if (existingIdx !== -1) {
+      // Average out if already exists
+      const existing = currentHoldings[existingIdx];
+      const newTotalQty = existing.quantity + qty;
+      const weightedAvgPrice = ((existing.buyPrice * existing.quantity) + (price * qty)) / newTotalQty;
+      updated = [...currentHoldings];
+      updated[existingIdx] = {
+        ...existing,
+        quantity: newTotalQty,
+        buyPrice: Math.round(weightedAvgPrice * 100) / 100,
+        buyDate: manualBuyDate || existing.buyDate,
+      };
+    } else {
+      updated = [
+        ...currentHoldings,
+        {
+          symbol: sym,
+          quantity: qty,
+          buyPrice: price,
+          buyDate: manualBuyDate,
+        }
+      ];
+    }
+
+    // Reset inputs
+    setManualSymbol('');
+    setManualQty('');
+    setManualBuyPrice('');
+    setError('');
+
+    syncHoldings(updated);
+  };
+
+  const handleRemoveHolding = (symbolToRemove) => {
+    if (!portfolio?.holdings) return;
+    const filtered = portfolio.holdings.filter(h => h.symbol !== symbolToRemove);
+    syncHoldings(filtered);
+  };
+
+  const handleLoadDemo = () => {
+    syncHoldings(SAMPLE_HOLDINGS);
+  };
+
+  const handleClearPortfolio = () => {
+    if (window.confirm('Are you sure you want to clear your current portfolio?')) {
+      setPortfolio(null);
+      setPortfolioAI(null);
+      localStorage.removeItem('stocksage_active_portfolio');
+    }
+  };
 
   const handleUpload = async (file) => {
     if (!file) return;
@@ -23,8 +158,17 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
     try {
       const data = await uploadPortfolio(file);
       setPortfolio(data);
+      if (data?.holdings?.length > 0) {
+        const minimal = data.holdings.map(h => ({
+          symbol: h.symbol,
+          quantity: h.quantity,
+          buyPrice: h.buyPrice,
+          buyDate: h.buyDate || '',
+        }));
+        localStorage.setItem('stocksage_active_portfolio', JSON.stringify(minimal));
+      }
     } catch (err) {
-      setError(err.message || 'Failed to upload portfolio');
+      setError(err.message || 'Failed to upload portfolio CSV');
     }
     setLoading(false);
   };
@@ -36,7 +180,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
     if (file && (file.name.endsWith('.csv') || file.type === 'text/csv')) {
       handleUpload(file);
     } else {
-      setError('Please upload a .csv file');
+      setError('Please upload a valid .csv file');
     }
   };
 
@@ -47,7 +191,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
       const data = await analyzeHolding(holding.symbol, holding.quantity, holding.buyPrice);
       onAnalyze(data);
     } catch (err) {
-      setError(err.message || 'Holding analysis failed');
+      setError(err.message || `Deep dive analysis failed for ${holding.symbol}`);
     }
     setAnalyzingSymbol('');
   };
@@ -60,7 +204,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
       const data = await analyzePortfolio(portfolio.holdings);
       setPortfolioAI(data);
     } catch (err) {
-      setError(err.message || 'Portfolio analysis failed');
+      setError(err.message || 'Portfolio-level analysis failed');
     }
     setAnalyzingPortfolio(false);
   };
@@ -71,309 +215,600 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
   };
 
   return (
-    <div className="fade-in-up">
-      <div className="dashboard-header">
-        <h1>💼 Portfolio Manager</h1>
-        <p>Upload your portfolio CSV to get AI-powered recommendations for each holding</p>
+    <div className="fade-in-up" style={{ paddingBottom: '3rem' }}>
+      {/* Header */}
+      <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1>💼 Institutional Portfolio Desk</h1>
+          <p>Track your real holdings with live NSE quotes, sector concentration defense, and quant trade management.</p>
+        </div>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={handleLoadDemo}
+            title="Pre-fills a 5-stock Indian bluechip portfolio to immediately test the system"
+          >
+            ⚡ Load Demo Portfolio
+          </button>
+          {portfolio && (
+            <>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => syncHoldings(portfolio.holdings)}
+                disabled={loading}
+                title="Refresh live quotes from NSE"
+              >
+                🔄 {loading ? 'Refreshing...' : 'Refresh Quotes'}
+              </button>
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={handleClearPortfolio}
+                style={{ color: 'var(--color-sell)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+              >
+                🗑️ Clear
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Upload Zone */}
-      {!portfolio && (
-        <div>
-          <div
-            className={`portfolio-upload-zone ${dragOver ? 'dragover' : ''}`}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => fileRef.current?.click()}
+      {/* Input Options Card (Tabs: Manual Entry vs CSV Upload) */}
+      <div className="glass-card" style={{ marginBottom: '1.5rem', padding: '1.25rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--border-secondary)', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
+          <button
+            className={`btn btn-sm ${activeTab === 'manual' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveTab('manual')}
           >
-            {loading ? (
-              <>
-                <div className="spinner" style={{ margin: '0 auto 1rem' }}></div>
-                <p>Processing your portfolio...</p>
-              </>
-            ) : (
-              <>
-                <div className="portfolio-upload-icon">📄</div>
-                <h3>Drop your Portfolio CSV here</h3>
-                <p className="text-muted" style={{ marginTop: '0.5rem' }}>
-                  or click to browse. Expected columns: Symbol, Quantity, BuyPrice, BuyDate
-                </p>
-              </>
-            )}
+            ➕ Add Holding Manually
+          </button>
+          <button
+            className={`btn btn-sm ${activeTab === 'csv' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveTab('csv')}
+          >
+            📁 Bulk CSV Upload
+          </button>
+        </div>
+
+        {activeTab === 'manual' ? (
+          <div>
+            <form onSubmit={handleManualAdd} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr)) 120px', gap: '0.75rem', alignItems: 'end' }}>
+              <div>
+                <label className="text-xs text-muted" style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>STOCK SYMBOL</label>
+                <input
+                  type="text"
+                  placeholder="e.g. RELIANCE, TCS"
+                  value={manualSymbol}
+                  onChange={(e) => setManualSymbol(e.target.value.toUpperCase())}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.75rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-secondary)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--text-primary)',
+                    fontWeight: 700,
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-muted" style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>QUANTITY (SHARES)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 10"
+                  min="1"
+                  step="1"
+                  value={manualQty}
+                  onChange={(e) => setManualQty(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.75rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-secondary)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-muted" style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>BUY PRICE (₹)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 2450.50"
+                  min="0.1"
+                  step="0.05"
+                  value={manualBuyPrice}
+                  onChange={(e) => setManualBuyPrice(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.75rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-secondary)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-muted" style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>PURCHASE DATE</label>
+                <input
+                  type="date"
+                  value={manualBuyDate}
+                  onChange={(e) => setManualBuyDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.75rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-secondary)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={loading}
+                  style={{ width: '100%', padding: '0.6rem', fontWeight: 700 }}
+                >
+                  {loading ? 'Adding...' : '➕ Add'}
+                </button>
+              </div>
+            </form>
+
+            {/* Quick Symbol Pills */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+              <span className="text-xs text-muted">Quick picks:</span>
+              {QUICK_SYMBOLS.map(sym => (
+                <button
+                  key={sym}
+                  type="button"
+                  onClick={() => setManualSymbol(sym)}
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid var(--border-secondary)',
+                    borderRadius: '4px',
+                    padding: '2px 8px',
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {sym}
+                </button>
+              ))}
+            </div>
           </div>
-          <input
-            type="file"
-            ref={fileRef}
-            accept=".csv"
-            style={{ display: 'none' }}
-            onChange={(e) => handleUpload(e.target.files[0])}
-          />
-          
-          {/* Sample CSV format */}
-          <div className="glass-card" style={{ marginTop: '1.5rem', maxWidth: '500px' }}>
-            <h4 style={{ marginBottom: '0.5rem' }}>📝 Sample CSV Format</h4>
-            <pre style={{
-              background: 'var(--bg-secondary)',
-              padding: '0.75rem',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.8rem',
-              color: 'var(--accent-cyan)',
-              overflowX: 'auto',
-            }}>
-{`Symbol,Quantity,BuyPrice,BuyDate
-RELIANCE,10,2450,2024-01-15
-TCS,5,3800,2024-03-20
-INFY,15,1480,2024-06-01
-HDFCBANK,8,1650,2024-02-10`}
-            </pre>
+        ) : (
+          <div>
+            <div
+              className={`portfolio-upload-zone ${dragOver ? 'dragover' : ''}`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileRef.current?.click()}
+              style={{ padding: '2rem 1rem' }}
+            >
+              {loading ? (
+                <>
+                  <div className="spinner" style={{ margin: '0 auto 1rem' }}></div>
+                  <p>Processing portfolio CSV...</p>
+                </>
+              ) : (
+                <>
+                  <div className="portfolio-upload-icon" style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📄</div>
+                  <h3 style={{ fontSize: '1.1rem' }}>Drop your Zerodha / Groww / AngelOne CSV here</h3>
+                  <p className="text-muted text-sm" style={{ marginTop: '0.25rem' }}>
+                    or click to browse. Recognizes standard headers: <code>Symbol, Quantity, BuyPrice, BuyDate</code>
+                  </p>
+                </>
+              )}
+            </div>
+            <input
+              type="file"
+              ref={fileRef}
+              accept=".csv"
+              style={{ display: 'none' }}
+              onChange={(e) => handleUpload(e.target.files[0])}
+            />
           </div>
+        )}
+      </div>
+
+      {error && (
+        <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--color-sell)', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', marginBottom: '1.5rem', color: 'var(--color-sell)', fontSize: '0.9rem' }}>
+          ⚠️ {error}
         </div>
       )}
 
-      {error && (
-        <p style={{ color: 'var(--color-sell)', marginTop: '1rem', fontSize: '0.9rem' }}>{error}</p>
-      )}
-
-      {/* Portfolio View */}
-      {portfolio && (
+      {/* Portfolio Main View */}
+      {portfolio && portfolio.holdings && portfolio.holdings.length > 0 ? (
         <div>
-          {/* Summary Cards */}
+          {/* Summary Metric Cards */}
           <div className="portfolio-summary-grid">
             <div className="portfolio-stat-card">
-              <div className="portfolio-stat-label">Total Invested</div>
+              <div className="portfolio-stat-label">Total Capital Invested</div>
               <div className="portfolio-stat-value">{formatPrice(portfolio.summary.totalInvested)}</div>
+              <div className="text-xs text-muted" style={{ marginTop: '0.25rem' }}>Across {portfolio.summary.totalHoldings} positions</div>
             </div>
+
             <div className="portfolio-stat-card">
-              <div className="portfolio-stat-label">Current Value</div>
+              <div className="portfolio-stat-label">Current Valuation</div>
               <div className="portfolio-stat-value">{formatPrice(portfolio.summary.totalCurrentValue)}</div>
+              <div className="text-xs text-muted" style={{ marginTop: '0.25rem' }}>Live NSE mark-to-market</div>
             </div>
+
             <div className="portfolio-stat-card">
-              <div className="portfolio-stat-label">Total P&L</div>
+              <div className="portfolio-stat-label">Overall Net P&L</div>
               <div className={`portfolio-stat-value ${portfolio.summary.totalPnl >= 0 ? 'change-positive' : 'change-negative'}`}>
                 {portfolio.summary.totalPnl >= 0 ? '+' : ''}{formatPrice(portfolio.summary.totalPnl)}
-                <span style={{ fontSize: '0.9rem', marginLeft: '0.25rem' }}>
+                <span style={{ fontSize: '0.9rem', marginLeft: '0.35rem', fontWeight: 600 }}>
                   ({portfolio.summary.totalPnlPercent >= 0 ? '+' : ''}{portfolio.summary.totalPnlPercent}%)
                 </span>
               </div>
+              <div className="text-xs text-muted" style={{ marginTop: '0.25rem' }}>
+                {portfolio.summary.totalPnl >= 0 ? '🟢 Profit zone' : '🔴 Capital defense required'}
+              </div>
             </div>
+
             <div className="portfolio-stat-card">
-              <div className="portfolio-stat-label">Holdings</div>
-              <div className="portfolio-stat-value">{portfolio.summary.totalHoldings}</div>
+              <div className="portfolio-stat-label">Leaders & Laggards</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--color-buy)', display: 'flex', justifyContent: 'space-between' }}>
+                <span>{portfolio.summary.topGainer ? portfolio.summary.topGainer.symbol : 'N/A'}</span>
+                <span>+{portfolio.summary.topGainer?.pnlPercent || 0}%</span>
+              </div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--color-sell)', display: 'flex', justifyContent: 'space-between', marginTop: '0.35rem' }}>
+                <span>{portfolio.summary.topLoser ? portfolio.summary.topLoser.symbol : 'N/A'}</span>
+                <span>{portfolio.summary.topLoser?.pnlPercent || 0}%</span>
+              </div>
             </div>
           </div>
 
-          {/* AI Analyze All Button */}
-          <div className="glass-card" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderColor: 'rgba(99, 102, 241, 0.3)' }}>
+          {/* AI / Quant Holistic Strategy Trigger Banner */}
+          <div className="glass-card" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderColor: 'rgba(99, 102, 241, 0.4)', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(34, 211, 238, 0.04) 100%)', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <h3 style={{ marginBottom: '0.25rem' }}>🧠 AI Portfolio Strategy</h3>
-              <p className="text-muted text-sm">Get holistic rebalancing, profit booking, and risk analysis for your entire portfolio in one shot</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{ fontSize: '1.25rem' }}>⚡</span>
+                <h3 style={{ margin: 0 }}>Institutional Portfolio Strategy & Rebalancing Desk</h3>
+              </div>
+              <p className="text-muted text-sm" style={{ margin: 0 }}>
+                Synthesizes sector concentration risk, target price profit booking, stop loss cuts, and capital reallocation.
+              </p>
             </div>
             <button
               className="btn btn-primary"
               onClick={handleAnalyzeAll}
-              disabled={analyzingPortfolio || !isAIReady}
-              style={{ flexShrink: 0 }}
+              disabled={analyzingPortfolio}
+              style={{ flexShrink: 0, padding: '0.75rem 1.25rem', fontWeight: 700 }}
             >
-              {analyzingPortfolio ? '⏳ Analyzing...' : '⚡ Analyze Portfolio'}
+              {analyzingPortfolio ? '⏳ Synthesizing Strategy...' : '🧠 Run Holistic Portfolio Analysis'}
             </button>
           </div>
 
-          {/* Portfolio AI Results */}
+          {/* Strategy Results Section */}
           {portfolioAI?.analysis && (
-            <div className="glass-card fade-in-up" style={{ marginBottom: '1.5rem', borderColor: 'rgba(99, 102, 241, 0.25)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3>🧠 AI Portfolio Insights</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span className="text-xs text-muted">Health Score</span>
+            <div className="glass-card fade-in-up" style={{ marginBottom: '1.5rem', borderColor: 'rgba(99, 102, 241, 0.3)' }}>
+              {/* Health Score & Overview */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-secondary)', paddingBottom: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem' }}>📊 Strategic Portfolio Assessment</h3>
+                  <div className="text-xs text-muted" style={{ marginTop: '0.25rem' }}>
+                    Analyzed at {new Date(portfolioAI.analyzedAt || Date.now()).toLocaleTimeString()}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(255,255,255,0.03)', padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-secondary)' }}>
+                  <span className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Portfolio Health</span>
                   <span style={{
-                    fontSize: '1.5rem', fontWeight: 800,
-                    color: portfolioAI.analysis.portfolioHealthScore >= 70 ? 'var(--color-buy)' : portfolioAI.analysis.portfolioHealthScore >= 40 ? 'var(--color-hold)' : 'var(--color-sell)',
-                  }}>{portfolioAI.analysis.portfolioHealthScore}/100</span>
+                    fontSize: '1.5rem',
+                    fontWeight: 800,
+                    color: portfolioAI.analysis.portfolioHealthScore >= 70 ? 'var(--color-buy)' : portfolioAI.analysis.portfolioHealthScore >= 45 ? 'var(--color-hold)' : 'var(--color-sell)',
+                  }}>
+                    {portfolioAI.analysis.portfolioHealthScore}/100
+                  </span>
                 </div>
               </div>
 
-              <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: '1.25rem' }}>
+              <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, fontSize: '0.95rem', marginBottom: '1.5rem' }}>
                 {portfolioAI.analysis.overallAssessment}
               </p>
 
-              {/* Sector Allocation Pie Chart */}
+              {/* Real Sector Allocation and Concentration Warning */}
               {portfolioAI.analysis.sectorAllocation?.length > 0 && (
-                <div style={{ marginBottom: '1.5rem', background: 'var(--bg-primary)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
-                  <h4 style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>pie Sector Allocation Risk</h4>
-                  <div style={{ height: '200px', width: '100%' }}>
+                <div style={{ marginBottom: '1.5rem', background: 'var(--bg-primary)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-secondary)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <h4 style={{ fontSize: '0.95rem', margin: 0 }}>🌐 Sector Diversification & Exposure</h4>
+                    <span className="text-xs text-muted">{portfolioAI.analysis.sectorAllocation.length} active sectors</span>
+                  </div>
+
+                  <div style={{ height: '220px', width: '100%' }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={portfolioAI.analysis.sectorAllocation}
                           cx="50%"
                           cy="50%"
-                          innerRadius={50}
-                          outerRadius={80}
-                          paddingAngle={5}
+                          innerRadius={55}
+                          outerRadius={85}
+                          paddingAngle={4}
                           dataKey="percentage"
                           nameKey="sector"
                           stroke="none"
                         >
                           {portfolioAI.analysis.sectorAllocation.map((entry, index) => (
-                            <Cell key={`cell-\${index}`} fill={COLORS[index % COLORS.length]} />
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
                         <RechartsTooltip 
+                          formatter={(value, name) => [`${value}%`, name]}
                           contentStyle={{ background: '#0c1220', border: '1px solid #1e293b', borderRadius: '8px', color: '#f8fafc' }}
-                          itemStyle={{ color: '#94a3b8' }}
                         />
-                        <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{ fontSize: '0.8rem', color: '#94a3b8' }} />
+                        <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '0.75rem', color: '#94a3b8', paddingTop: '10px' }} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
+
                   {portfolioAI.analysis.sectorConcentration && (
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                      <strong>AI Note: </strong>{portfolioAI.analysis.sectorConcentration}
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.75rem', padding: '0.6rem 0.85rem', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', borderLeft: '3px solid var(--accent-cyan)' }}>
+                      <strong>Diversification Verdict: </strong>{portfolioAI.analysis.sectorConcentration}
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Profit Booking Actions */}
-              {portfolioAI.analysis.profitBookingActions?.length > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <h4 style={{ fontSize: '0.85rem', color: 'var(--color-buy)', marginBottom: '0.5rem' }}>💰 Profit Booking Recommendations</h4>
-                  {portfolioAI.analysis.profitBookingActions.map((a, i) => (
-                    <div key={i} className="expert-signal-item bullish" style={{ marginBottom: '0.25rem' }}>
-                      <strong>{a.symbol}</strong>: {a.action} {a.quantity && `(${a.quantity})`} {a.targetPrice ? `at ₹${a.targetPrice}` : ''} — {a.reasoning}
-                    </div>
-                  ))}
+              {/* Action Hub (Profit Booking, Loss Cutting, Rebalancing) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                {/* Profit Booking */}
+                <div style={{ background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
+                  <h4 style={{ fontSize: '0.9rem', color: 'var(--color-buy)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span>💰</span> Profit Booking Targets
+                  </h4>
+                  {portfolioAI.analysis.profitBookingActions?.length > 0 ? (
+                    portfolioAI.analysis.profitBookingActions.map((a, i) => (
+                      <div key={i} style={{ marginBottom: '0.6rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '0.82rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: '0.2rem' }}>
+                          <span style={{ color: 'var(--text-primary)' }}>{a.symbol}</span>
+                          <span style={{ color: 'var(--color-buy)' }}>{a.action}</span>
+                        </div>
+                        <div className="text-muted" style={{ lineHeight: 1.4 }}>{a.reasoning}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted">No positions currently at profit target (+7% or higher). Let winners develop.</p>
+                  )}
                 </div>
-              )}
 
-              {/* Loss Cutting */}
-              {portfolioAI.analysis.lossCuttingActions?.length > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <h4 style={{ fontSize: '0.85rem', color: 'var(--color-sell)', marginBottom: '0.5rem' }}>✂️ Loss Cutting Actions</h4>
-                  {portfolioAI.analysis.lossCuttingActions.map((a, i) => (
-                    <div key={i} className="expert-signal-item bearish" style={{ marginBottom: '0.25rem' }}>
-                      <strong>{a.symbol}</strong>: {a.action} — {a.reasoning}
-                    </div>
-                  ))}
+                {/* Loss Cutting Defense */}
+                <div style={{ background: 'rgba(239, 68, 68, 0.04)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
+                  <h4 style={{ fontSize: '0.9rem', color: 'var(--color-sell)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span>✂️</span> Loss-Cutting Stops
+                  </h4>
+                  {portfolioAI.analysis.lossCuttingActions?.length > 0 ? (
+                    portfolioAI.analysis.lossCuttingActions.map((a, i) => (
+                      <div key={i} style={{ marginBottom: '0.6rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '0.82rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: '0.2rem' }}>
+                          <span style={{ color: 'var(--text-primary)' }}>{a.symbol}</span>
+                          <span style={{ color: 'var(--color-sell)' }}>{a.action}</span>
+                        </div>
+                        <div className="text-muted" style={{ lineHeight: 1.4 }}>{a.reasoning}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted">Zero holdings have breached the -5.5% hard stop loss. Capital defense intact.</p>
+                  )}
                 </div>
-              )}
 
-              {/* Rebalance */}
-              {portfolioAI.analysis.rebalanceActions?.length > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <h4 style={{ fontSize: '0.85rem', color: 'var(--accent-cyan)', marginBottom: '0.5rem' }}>⚖️ Rebalancing Suggestions</h4>
-                  {portfolioAI.analysis.rebalanceActions.map((a, i) => (
-                    <div key={i} className="expert-signal-item" style={{ marginBottom: '0.25rem', borderColor: a.direction === 'INCREASE' ? 'var(--color-buy)' : a.direction === 'EXIT' ? 'var(--color-sell)' : 'var(--border-secondary)' }}>
-                      <strong>{a.symbol}</strong>: {a.direction} {a.targetAllocation ? `→ ${a.targetAllocation}` : ''} — {a.reasoning}
-                    </div>
-                  ))}
+                {/* Rebalancing Strategy */}
+                <div style={{ background: 'rgba(56, 189, 248, 0.04)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
+                  <h4 style={{ fontSize: '0.9rem', color: 'var(--accent-cyan)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span>⚖️</span> Allocation Discipline
+                  </h4>
+                  {portfolioAI.analysis.rebalanceActions?.length > 0 ? (
+                    portfolioAI.analysis.rebalanceActions.slice(0, 4).map((a, i) => (
+                      <div key={i} style={{ marginBottom: '0.6rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '0.82rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: '0.2rem' }}>
+                          <span style={{ color: 'var(--text-primary)' }}>{a.symbol}</span>
+                          <span style={{
+                            color: a.direction === 'DECREASE' ? 'var(--color-sell)' : a.direction === 'EXIT' ? 'var(--color-sell)' : 'var(--accent-cyan)'
+                          }}>
+                            {a.direction} ({a.targetAllocation})
+                          </span>
+                        </div>
+                        <div className="text-muted" style={{ lineHeight: 1.4 }}>{a.reasoning}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted">All allocations are balanced within institutional single-stock risk caps.</p>
+                  )}
                 </div>
-              )}
-
-              {/* Suggested New Stocks */}
-              {portfolioAI.analysis.suggestedNewStocks?.length > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <h4 style={{ fontSize: '0.85rem', color: 'var(--accent-secondary)', marginBottom: '0.5rem' }}>🆕 Suggested Additions</h4>
-                  {portfolioAI.analysis.suggestedNewStocks.map((s, i) => (
-                    <div key={i} className="expert-signal-item" style={{ marginBottom: '0.25rem', borderColor: 'var(--accent-secondary)' }}>
-                      <strong>{s.symbol}</strong> {s.suggestedEntry ? `(Entry: ${s.suggestedEntry})` : ''} — {s.reasoning}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Overall Strategy */}
-              <div style={{ padding: '1rem', background: 'rgba(99, 102, 241, 0.05)', border: '1px solid rgba(99, 102, 241, 0.15)', borderRadius: 'var(--radius-md)', marginTop: '1rem' }}>
-                <strong>💡 This Week's Strategy:</strong>
-                <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, marginTop: '0.5rem' }}>
-                  {portfolioAI.analysis.overallStrategy}
-                </p>
               </div>
 
-              {/* Risk Warnings */}
-              {portfolioAI.analysis.riskWarnings?.length > 0 && (
-                <div style={{ marginTop: '1rem' }}>
-                  {portfolioAI.analysis.riskWarnings.map((w, i) => (
-                    <div key={i} style={{ fontSize: '0.8rem', color: 'var(--color-hold)', marginBottom: '0.25rem' }}>⚠️ {w}</div>
-                  ))}
+              {/* Complementary Additions */}
+              {portfolioAI.analysis.suggestedNewStocks?.length > 0 && (
+                <div style={{ marginBottom: '1.25rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-secondary)' }}>
+                  <h4 style={{ fontSize: '0.9rem', color: 'var(--accent-secondary)', margin: '0 0 0.75rem 0' }}>
+                    🆕 Recommended Sector Complements (To Boost Diversification)
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
+                    {portfolioAI.analysis.suggestedNewStocks.map((s, i) => (
+                      <div key={i} style={{ padding: '0.6rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '0.82rem' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--accent-secondary)', marginBottom: '0.2rem' }}>
+                          {s.symbol} {s.suggestedEntry && <span className="text-muted" style={{ fontWeight: 400 }}>({s.suggestedEntry})</span>}
+                        </div>
+                        <div className="text-muted">{s.reasoning}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* This Week's Tactical Execution Plan */}
+              {portfolioAI.analysis.overallStrategy && (
+                <div style={{ padding: '1rem', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: 'var(--radius-md)' }}>
+                  <strong style={{ color: 'var(--accent-primary)', display: 'block', marginBottom: '0.35rem', fontSize: '0.9rem' }}>
+                    💡 Institutional Weekly Game Plan
+                  </strong>
+                  <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0, fontSize: '0.88rem' }}>
+                    {portfolioAI.analysis.overallStrategy}
+                  </p>
                 </div>
               )}
             </div>
           )}
 
-          {/* Holdings Table */}
-          <div className="glass-card" style={{ overflow: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3>📋 Holdings</h3>
-              <button className="btn btn-secondary btn-sm" onClick={() => { setPortfolio(null); setPortfolioAI(null); }}>
-                Upload New CSV
-              </button>
+          {/* Holdings Table with Institutional Quant Badges */}
+          <div className="glass-card" style={{ overflow: 'hidden', padding: 0 }}>
+            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0 }}>📋 Current Holdings & Real-Time Trade Desk</h3>
+                <span className="text-xs text-muted">Live MTM, stop loss levels, and quantitative action triggers</span>
+              </div>
+              <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                {portfolio.holdings.length} Positions Active
+              </span>
             </div>
-            <table className="portfolio-table">
-              <thead>
-                <tr>
-                  <th>Stock</th>
-                  <th>Qty</th>
-                  <th>Buy Price</th>
-                  <th>Current Price</th>
-                  <th>Invested</th>
-                  <th>Current Value</th>
-                  <th>P&L</th>
-                  <th>P&L %</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {portfolio.holdings.map((h, i) => (
-                  <tr key={i}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{h.symbol}</div>
-                      {h.name && <div className="text-xs text-muted">{h.name}</div>}
-                    </td>
-                    <td>{h.quantity}</td>
-                    <td>{formatPrice(h.buyPrice)}</td>
-                    <td>{h.error ? <span className="text-muted">Error</span> : formatPrice(h.currentPrice)}</td>
-                    <td>{formatPrice(h.investedValue)}</td>
-                    <td>{formatPrice(h.currentValue)}</td>
-                    <td className={h.pnl >= 0 ? 'change-positive' : 'change-negative'}>
-                      {h.pnl >= 0 ? '+' : ''}{formatPrice(h.pnl)}
-                    </td>
-                    <td className={h.pnlPercent >= 0 ? 'change-positive' : 'change-negative'}>
-                      {h.pnlPercent >= 0 ? '+' : ''}{h.pnlPercent}%
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => handleAnalyzeHolding(h)}
-                        disabled={!!analyzingSymbol || !isAIReady}
-                      >
-                        {analyzingSymbol === h.symbol ? '⏳' : '🧠'} Analyze
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
 
-          {/* Top Gainer / Loser */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
-            {portfolio.summary.topGainer && (
-              <div className="glass-card" style={{ borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                <div className="text-xs text-muted font-semibold" style={{ textTransform: 'uppercase' }}>🏆 Top Gainer</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, marginTop: '0.25rem' }}>{portfolio.summary.topGainer.symbol}</div>
-                <div className="change-positive font-semibold">+{portfolio.summary.topGainer.pnlPercent}% ({formatPrice(portfolio.summary.topGainer.pnl)})</div>
-              </div>
-            )}
-            {portfolio.summary.topLoser && (
-              <div className="glass-card" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-                <div className="text-xs text-muted font-semibold" style={{ textTransform: 'uppercase' }}>📉 Top Loser</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, marginTop: '0.25rem' }}>{portfolio.summary.topLoser.symbol}</div>
-                <div className="change-negative font-semibold">{portfolio.summary.topLoser.pnlPercent}% ({formatPrice(portfolio.summary.topLoser.pnl)})</div>
-              </div>
-            )}
+            <div style={{ overflowX: 'auto' }}>
+              <table className="portfolio-table" style={{ margin: 0 }}>
+                <thead>
+                  <tr>
+                    <th>Stock / Sector</th>
+                    <th>Qty</th>
+                    <th>Avg Buy Price</th>
+                    <th>Current Price</th>
+                    <th>Target (T1)</th>
+                    <th>Stop Loss</th>
+                    <th>Invested</th>
+                    <th>Valuation</th>
+                    <th>P&L</th>
+                    <th>P&L %</th>
+                    <th>Quant Recommendation</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {portfolio.holdings.map((h, i) => {
+                    const badge = h.quantAction || {
+                      badge: 'HOLD_IN_BASE',
+                      label: 'HOLD BASE',
+                      variant: 'cyan',
+                      detail: 'Position within normal noise tolerance.',
+                    };
+
+                    const badgeStyle = badge.badge === 'RIDE_RUNNER'
+                      ? { background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.4)' }
+                      : badge.badge === 'BANK_PROFIT_T1'
+                      ? { background: 'rgba(52, 211, 153, 0.15)', color: '#34d399', border: '1px solid rgba(52, 211, 153, 0.4)' }
+                      : badge.badge === 'CUT_LOSS'
+                      ? { background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)' }
+                      : { background: 'rgba(56, 189, 248, 0.12)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' };
+
+                    return (
+                      <tr key={i}>
+                        <td>
+                          <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{h.symbol}</div>
+                          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginTop: '0.2rem' }}>
+                            {h.sector && (
+                              <span style={{ fontSize: '0.7rem', padding: '1px 6px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', color: 'var(--text-secondary)' }}>
+                                {h.sector}
+                              </span>
+                            )}
+                            {h.cap && (
+                              <span style={{ fontSize: '0.65rem', padding: '1px 4px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '3px', color: 'var(--accent-primary)' }}>
+                                {h.cap === 'LARGE_CAP' ? 'LARGE' : h.cap === 'MID_CAP' ? 'MID' : 'SMALL'}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{h.quantity}</td>
+                        <td>{formatPrice(h.buyPrice)}</td>
+                        <td>
+                          {h.error ? (
+                            <span className="text-muted" style={{ fontSize: '0.8rem' }}>Unavailable</span>
+                          ) : (
+                            <div>
+                              <div style={{ fontWeight: 700 }}>{formatPrice(h.currentPrice)}</div>
+                              {h.dayChange !== undefined && (
+                                <div style={{ fontSize: '0.75rem', color: h.dayChange >= 0 ? 'var(--color-buy)' : 'var(--color-sell)' }}>
+                                  {h.dayChange >= 0 ? '+' : ''}{h.dayChange.toFixed(2)}%
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ color: 'var(--color-buy)', fontWeight: 600 }}>
+                          {formatPrice(h.targetPrice || h.buyPrice * 1.08)}
+                        </td>
+                        <td style={{ color: 'var(--color-sell)', fontWeight: 600 }}>
+                          {formatPrice(h.stopLossPrice || h.buyPrice * 0.94)}
+                        </td>
+                        <td>{formatPrice(h.investedValue)}</td>
+                        <td style={{ fontWeight: 600 }}>{formatPrice(h.currentValue)}</td>
+                        <td className={h.pnl >= 0 ? 'change-positive' : 'change-negative'} style={{ fontWeight: 700 }}>
+                          {h.pnl >= 0 ? '+' : ''}{formatPrice(h.pnl)}
+                        </td>
+                        <td className={h.pnlPercent >= 0 ? 'change-positive' : 'change-negative'} style={{ fontWeight: 700 }}>
+                          {h.pnlPercent >= 0 ? '+' : ''}{h.pnlPercent}%
+                        </td>
+                        <td>
+                          <div
+                            style={{
+                              ...badgeStyle,
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              textAlign: 'center',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={badge.detail}
+                          >
+                            {badge.label}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() => handleAnalyzeHolding(h)}
+                              disabled={!!analyzingSymbol}
+                              title="Deep dive into multi-timeframe swing indicators, regime alignment, and order flow"
+                              style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
+                            >
+                              {analyzingSymbol === h.symbol ? '⏳' : '🧠 Deep Dive'}
+                            </button>
+                            <button
+                              className="btn btn-outline btn-sm"
+                              onClick={() => handleRemoveHolding(h.symbol)}
+                              title="Remove from portfolio"
+                              style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: 'var(--color-sell)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
+        </div>
+      ) : (
+        /* Empty State */
+        <div className="glass-card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', marginTop: '1rem' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>💼</div>
+          <h3 style={{ marginBottom: '0.5rem' }}>No Holdings Added Yet</h3>
+          <p className="text-muted" style={{ maxWidth: '520px', margin: '0 auto 1.5rem' }}>
+            Enter your current stock holdings using the manual form above, or click <strong>Load Demo Portfolio</strong> to immediately see how the institutional trade desk analyzes and protects an equity portfolio.
+          </p>
+          <button className="btn btn-primary" onClick={handleLoadDemo}>
+            ⚡ Load Demo Portfolio (5 Bluechips)
+          </button>
         </div>
       )}
     </div>
