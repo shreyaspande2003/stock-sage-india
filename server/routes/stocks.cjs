@@ -46,7 +46,8 @@ router.get('/historical/:symbol', async (req, res) => {
 
 router.get('/scan', async (req, res) => {
   try {
-    const scan = await scanSwingUniverse();
+    const tier = req.query.tier || 'PRO';
+    const scan = await scanSwingUniverse(tier);
     res.json(scan);
   } catch (err) {
     console.error('[Route] Scan error:', err.message);
@@ -58,7 +59,8 @@ router.get('/scan', async (req, res) => {
 const { getMorningBreakoutTriggers } = require('../services/morningTriggerEngine.cjs');
 router.get('/morning-triggers', async (req, res) => {
   try {
-    const data = await getMorningBreakoutTriggers();
+    const tier = req.query.tier || 'PRO';
+    const data = await getMorningBreakoutTriggers(tier);
     res.json(data);
   } catch (err) {
     console.error('[Route] Morning triggers error:', err.message);

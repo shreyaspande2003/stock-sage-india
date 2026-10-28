@@ -266,6 +266,17 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
               fontSize: '0.65rem',
               padding: '0.15rem 0.6rem',
               borderRadius: '1rem',
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25))',
+              color: '#c084fc',
+              border: '1px solid rgba(168, 85, 247, 0.4)',
+              fontWeight: 700
+            }}>
+              💎 200 UNIVERSE (PRO ACTIVE)
+            </span>
+            <span style={{
+              fontSize: '0.65rem',
+              padding: '0.15rem 0.6rem',
+              borderRadius: '1rem',
               background: morningData?.sessionInfo?.isMarketOpen ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
               color: morningData?.sessionInfo?.isMarketOpen ? 'var(--color-buy)' : 'var(--text-tertiary)',
               border: morningData?.sessionInfo?.isMarketOpen ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -495,7 +506,10 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
         {/* Swing Radar */}
         <div className="glass-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <h3 style={{ margin: 0 }}>🎯 Swing Radar V2</h3>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>🎯 Swing Radar V2</span>
+              <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', fontWeight: 600 }}>200 STOCKS</span>
+            </h3>
             {swingPicks?.scannedAt && (
               <span className="text-muted" style={{ fontSize: '0.75rem', fontWeight: 'normal' }}>
                 {new Date(swingPicks.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

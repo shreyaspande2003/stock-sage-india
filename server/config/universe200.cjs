@@ -1,0 +1,249 @@
+// StockSage Multi-Cap Universe — 200 Liquid NSE Leaders
+// Covers ~85% of total Indian market cap and >90% of daily liquid turnover.
+// Tagged by Market Cap, Sector, and Product Tier (FREE vs PRO).
+
+const UNIVERSE_200 = [
+  // ==========================================
+  // 1. TIER: FREE (Top 50 Nifty Flagships)
+  // ==========================================
+  { symbol: 'RELIANCE', name: 'Reliance Industries', cap: 'LARGE_CAP', sector: 'Energy', tier: 'FREE' },
+  { symbol: 'TCS', name: 'Tata Consultancy Services', cap: 'LARGE_CAP', sector: 'IT', tier: 'FREE' },
+  { symbol: 'HDFCBANK', name: 'HDFC Bank', cap: 'LARGE_CAP', sector: 'Banking', tier: 'FREE' },
+  { symbol: 'INFY', name: 'Infosys', cap: 'LARGE_CAP', sector: 'IT', tier: 'FREE' },
+  { symbol: 'ICICIBANK', name: 'ICICI Bank', cap: 'LARGE_CAP', sector: 'Banking', tier: 'FREE' },
+  { symbol: 'BHARTIARTL', name: 'Bharti Airtel', cap: 'LARGE_CAP', sector: 'Telecom', tier: 'FREE' },
+  { symbol: 'SBIN', name: 'State Bank of India', cap: 'LARGE_CAP', sector: 'Banking', tier: 'FREE' },
+  { symbol: 'LT', name: 'Larsen & Toubro', cap: 'LARGE_CAP', sector: 'Infra', tier: 'FREE' },
+  { symbol: 'ITC', name: 'ITC Limited', cap: 'LARGE_CAP', sector: 'FMCG', tier: 'FREE' },
+  { symbol: 'HINDUNILVR', name: 'Hindustan Unilever', cap: 'LARGE_CAP', sector: 'FMCG', tier: 'FREE' },
+  { symbol: 'KOTAKBANK', name: 'Kotak Mahindra Bank', cap: 'LARGE_CAP', sector: 'Banking', tier: 'FREE' },
+  { symbol: 'AXISBANK', name: 'Axis Bank', cap: 'LARGE_CAP', sector: 'Banking', tier: 'FREE' },
+  { symbol: 'BAJFINANCE', name: 'Bajaj Finance', cap: 'LARGE_CAP', sector: 'Finance', tier: 'FREE' },
+  { symbol: 'MARUTI', name: 'Maruti Suzuki', cap: 'LARGE_CAP', sector: 'Auto', tier: 'FREE' },
+  { symbol: 'M&M', name: 'Mahindra & Mahindra', cap: 'LARGE_CAP', sector: 'Auto', tier: 'FREE' },
+  { symbol: 'SUNPHARMA', name: 'Sun Pharma', cap: 'LARGE_CAP', sector: 'Pharma', tier: 'FREE' },
+  { symbol: 'TITAN', name: 'Titan Company', cap: 'LARGE_CAP', sector: 'Consumer', tier: 'FREE' },
+  { symbol: 'ULTRACEMCO', name: 'UltraTech Cement', cap: 'LARGE_CAP', sector: 'Cement', tier: 'FREE' },
+  { symbol: 'NTPC', name: 'NTPC Limited', cap: 'LARGE_CAP', sector: 'Power', tier: 'FREE' },
+  { symbol: 'ONGC', name: 'Oil & Natural Gas Corp', cap: 'LARGE_CAP', sector: 'Energy', tier: 'FREE' },
+  { symbol: 'POWERGRID', name: 'Power Grid Corp', cap: 'LARGE_CAP', sector: 'Power', tier: 'FREE' },
+  { symbol: 'ADANIENT', name: 'Adani Enterprises', cap: 'LARGE_CAP', sector: 'Metals/Infra', tier: 'FREE' },
+  { symbol: 'ADANIPORTS', name: 'Adani Ports & SEZ', cap: 'LARGE_CAP', sector: 'Ports', tier: 'FREE' },
+  { symbol: 'TATASTEEL', name: 'Tata Steel', cap: 'LARGE_CAP', sector: 'Metals', tier: 'FREE' },
+  { symbol: 'COALINDIA', name: 'Coal India', cap: 'LARGE_CAP', sector: 'Mining', tier: 'FREE' },
+  { symbol: 'BAJAJFINSV', name: 'Bajaj Finserv', cap: 'LARGE_CAP', sector: 'Finance', tier: 'FREE' },
+  { symbol: 'ASIANPAINT', name: 'Asian Paints', cap: 'LARGE_CAP', sector: 'Paints', tier: 'FREE' },
+  { symbol: 'NESTLEIND', name: 'Nestle India', cap: 'LARGE_CAP', sector: 'FMCG', tier: 'FREE' },
+  { symbol: 'JSWSTEEL', name: 'JSW Steel', cap: 'LARGE_CAP', sector: 'Metals', tier: 'FREE' },
+  { symbol: 'GRASIM', name: 'Grasim Industries', cap: 'LARGE_CAP', sector: 'Diversified', tier: 'FREE' },
+  { symbol: 'TECHM', name: 'Tech Mahindra', cap: 'LARGE_CAP', sector: 'IT', tier: 'FREE' },
+  { symbol: 'HCLTECH', name: 'HCL Technologies', cap: 'LARGE_CAP', sector: 'IT', tier: 'FREE' },
+  { symbol: 'WIPRO', name: 'Wipro Limited', cap: 'LARGE_CAP', sector: 'IT', tier: 'FREE' },
+  { symbol: 'HINDALCO', name: 'Hindalco Industries', cap: 'LARGE_CAP', sector: 'Metals', tier: 'FREE' },
+  { symbol: 'CIPLA', name: 'Cipla Limited', cap: 'LARGE_CAP', sector: 'Pharma', tier: 'FREE' },
+  { symbol: 'DRREDDY', name: "Dr. Reddy's Labs", cap: 'LARGE_CAP', sector: 'Pharma', tier: 'FREE' },
+  { symbol: 'APOLLOHOSP', name: 'Apollo Hospitals', cap: 'LARGE_CAP', sector: 'Healthcare', tier: 'FREE' },
+  { symbol: 'DIVISLAB', name: "Divi's Laboratories", cap: 'LARGE_CAP', sector: 'Pharma', tier: 'FREE' },
+  { symbol: 'EICHERMOT', name: 'Eicher Motors', cap: 'LARGE_CAP', sector: 'Auto', tier: 'FREE' },
+  { symbol: 'BPCL', name: 'Bharat Petroleum', cap: 'LARGE_CAP', sector: 'Energy', tier: 'FREE' },
+  { symbol: 'BRITANNIA', name: 'Britannia Industries', cap: 'LARGE_CAP', sector: 'FMCG', tier: 'FREE' },
+  { symbol: 'HEROMOTOCO', name: 'Hero MotoCorp', cap: 'LARGE_CAP', sector: 'Auto', tier: 'FREE' },
+  { symbol: 'TATACONSUM', name: 'Tata Consumer Products', cap: 'LARGE_CAP', sector: 'FMCG', tier: 'FREE' },
+  { symbol: 'SBILIFE', name: 'SBI Life Insurance', cap: 'LARGE_CAP', sector: 'Insurance', tier: 'FREE' },
+  { symbol: 'HDFCLIFE', name: 'HDFC Life Insurance', cap: 'LARGE_CAP', sector: 'Insurance', tier: 'FREE' },
+  { symbol: 'SHREECEM', name: 'Shree Cement', cap: 'LARGE_CAP', sector: 'Cement', tier: 'FREE' },
+  { symbol: 'BEL', name: 'Bharat Electronics', cap: 'LARGE_CAP', sector: 'Defense', tier: 'FREE' },
+  { symbol: 'VBL', name: 'Varun Beverages', cap: 'LARGE_CAP', sector: 'FMCG', tier: 'FREE' },
+  { symbol: 'SIEMENS', name: 'Siemens India', cap: 'LARGE_CAP', sector: 'Capital Goods', tier: 'FREE' },
+  { symbol: 'ABB', name: 'ABB India', cap: 'LARGE_CAP', sector: 'Capital Goods', tier: 'FREE' },
+
+  // ==========================================
+  // 2. TIER: PRO (High-Velocity Mid & Small Caps)
+  // ==========================================
+
+  // Defense & Aerospace
+  { symbol: 'HAL', name: 'Hindustan Aeronautics', cap: 'MID_CAP', sector: 'Defense', tier: 'PRO' },
+  { symbol: 'MAZDOCK', name: 'Mazagon Dock Shipbuilders', cap: 'SMALL_CAP', sector: 'Defense', tier: 'PRO' },
+  { symbol: 'COCHINSHIP', name: 'Cochin Shipyard', cap: 'SMALL_CAP', sector: 'Shipbuilding', tier: 'PRO' },
+  { symbol: 'BDL', name: 'Bharat Dynamics', cap: 'MID_CAP', sector: 'Defense', tier: 'PRO' },
+  { symbol: 'GRSE', name: 'Garden Reach Shipbuilders', cap: 'SMALL_CAP', sector: 'Defense', tier: 'PRO' },
+  { symbol: 'DATAPATTNS', name: 'Data Patterns India', cap: 'SMALL_CAP', sector: 'Defense Tech', tier: 'PRO' },
+  { symbol: 'PARAS', name: 'Paras Defence', cap: 'SMALL_CAP', sector: 'Defense Tech', tier: 'PRO' },
+  { symbol: 'MTARTECH', name: 'MTAR Technologies', cap: 'SMALL_CAP', sector: 'Precision Engg', tier: 'PRO' },
+
+  // Railways & PSU Infrastructure
+  { symbol: 'RVNL', name: 'Rail Vikas Nigam', cap: 'MID_CAP', sector: 'Railways', tier: 'PRO' },
+  { symbol: 'IRFC', name: 'Indian Railway Finance', cap: 'MID_CAP', sector: 'Railways', tier: 'PRO' },
+  { symbol: 'RAILTEL', name: 'RailTel Corporation', cap: 'SMALL_CAP', sector: 'Telecom/Rail', tier: 'PRO' },
+  { symbol: 'IRCON', name: 'Ircon International', cap: 'SMALL_CAP', sector: 'Railways', tier: 'PRO' },
+  { symbol: 'TITAGARH', name: 'Titagarh Rail Systems', cap: 'SMALL_CAP', sector: 'Rail Wagons', tier: 'PRO' },
+  { symbol: 'RITES', name: 'RITES Limited', cap: 'SMALL_CAP', sector: 'Rail Infra', tier: 'PRO' },
+  { symbol: 'BHEL', name: 'Bharat Heavy Electricals', cap: 'MID_CAP', sector: 'Power Gear', tier: 'PRO' },
+  { symbol: 'NBCC', name: 'NBCC India', cap: 'SMALL_CAP', sector: 'Construction', tier: 'PRO' },
+  { symbol: 'HUDCO', name: 'HUDCO Finance', cap: 'SMALL_CAP', sector: 'Housing Finance', tier: 'PRO' },
+  { symbol: 'NCC', name: 'NCC Limited', cap: 'SMALL_CAP', sector: 'Construction', tier: 'PRO' },
+  { symbol: 'IRB', name: 'IRB Infrastructure', cap: 'SMALL_CAP', sector: 'Highways', tier: 'PRO' },
+  { symbol: 'IRCTC', name: 'IRCTC Catering & Tourism', cap: 'MID_CAP', sector: 'Railways', tier: 'PRO' },
+
+  // Green Energy, Solar & Power Alpha
+  { symbol: 'TATAPOWER', name: 'Tata Power', cap: 'MID_CAP', sector: 'Clean Energy', tier: 'PRO' },
+  { symbol: 'IREDA', name: 'Indian Renewable Energy Dev', cap: 'MID_CAP', sector: 'Green Finance', tier: 'PRO' },
+  { symbol: 'SUZLON', name: 'Suzlon Energy', cap: 'SMALL_CAP', sector: 'Wind Energy', tier: 'PRO' },
+  { symbol: 'ADANIGREEN', name: 'Adani Green Energy', cap: 'LARGE_CAP', sector: 'Solar Energy', tier: 'PRO' },
+  { symbol: 'ADANIPOWER', name: 'Adani Power', cap: 'MID_CAP', sector: 'Thermal Power', tier: 'PRO' },
+  { symbol: 'NHPC', name: 'NHPC Hydro Power', cap: 'MID_CAP', sector: 'Hydro Energy', tier: 'PRO' },
+  { symbol: 'SJVN', name: 'SJVN Limited', cap: 'SMALL_CAP', sector: 'Power Gen', tier: 'PRO' },
+  { symbol: 'JSWENERGY', name: 'JSW Energy', cap: 'MID_CAP', sector: 'Power', tier: 'PRO' },
+  { symbol: 'CESC', name: 'CESC Limited', cap: 'SMALL_CAP', sector: 'Power Utility', tier: 'PRO' },
+  { symbol: 'INOXWIND', name: 'Inox Wind', cap: 'SMALL_CAP', sector: 'Wind Energy', tier: 'PRO' },
+  { symbol: 'CGPOWER', name: 'CG Power & Industrial', cap: 'MID_CAP', sector: 'Power Gear', tier: 'PRO' },
+
+  // Electronics Manufacturing & EMS
+  { symbol: 'DIXON', name: 'Dixon Technologies', cap: 'MID_CAP', sector: 'EMS Electronics', tier: 'PRO' },
+  { symbol: 'KAYNES', name: 'Kaynes Technology', cap: 'SMALL_CAP', sector: 'EMS Electronics', tier: 'PRO' },
+  { symbol: 'AMBER', name: 'Amber Enterprises', cap: 'MID_CAP', sector: 'HVAC/EMS', tier: 'PRO' },
+  { symbol: 'SYRMA', name: 'Syrma SGS Technology', cap: 'SMALL_CAP', sector: 'EMS Electronics', tier: 'PRO' },
+  { symbol: 'NETWEB', name: 'Netweb Technologies', cap: 'SMALL_CAP', sector: 'Supercomputing', tier: 'PRO' },
+  { symbol: 'TEJASNET', name: 'Tejas Networks', cap: 'SMALL_CAP', sector: 'Telecom Gear', tier: 'PRO' },
+
+  // Mid-Cap IT & SaaS Alpha
+  { symbol: 'PERSISTENT', name: 'Persistent Systems', cap: 'MID_CAP', sector: 'IT Services', tier: 'PRO' },
+  { symbol: 'COFORGE', name: 'Coforge Limited', cap: 'MID_CAP', sector: 'IT Services', tier: 'PRO' },
+  { symbol: 'KPITTECH', name: 'KPIT Technologies', cap: 'MID_CAP', sector: 'Auto Tech', tier: 'PRO' },
+  { symbol: 'TATAELXSI', name: 'Tata Elxsi', cap: 'MID_CAP', sector: 'Design & Tech', tier: 'PRO' },
+  { symbol: 'CYIENT', name: 'Cyient Limited', cap: 'SMALL_CAP', sector: 'Engg Services', tier: 'PRO' },
+  { symbol: 'MPHASIS', name: 'Mphasis Limited', cap: 'MID_CAP', sector: 'IT Services', tier: 'PRO' },
+  { symbol: 'OFSS', name: 'Oracle Financial Services', cap: 'MID_CAP', sector: 'Fintech Software', tier: 'PRO' },
+
+  // Pharma, CDMO & Healthcare (including PPLPHARMA)
+  { symbol: 'PPLPHARMA', name: 'Piramal Pharma', cap: 'MID_CAP', sector: 'CDMO Pharma', tier: 'PRO' },
+  { symbol: 'AUROPHARMA', name: 'Aurobindo Pharma', cap: 'MID_CAP', sector: 'Pharma', tier: 'PRO' },
+  { symbol: 'LUPIN', name: 'Lupin Limited', cap: 'MID_CAP', sector: 'Pharma', tier: 'PRO' },
+  { symbol: 'TORNTPHARM', name: 'Torrent Pharma', cap: 'LARGE_CAP', sector: 'Pharma', tier: 'PRO' },
+  { symbol: 'MANKIND', name: 'Mankind Pharma', cap: 'LARGE_CAP', sector: 'Consumer Health', tier: 'PRO' },
+  { symbol: 'BIOCON', name: 'Biocon Limited', cap: 'MID_CAP', sector: 'Biotech', tier: 'PRO' },
+  { symbol: 'GLENMARK', name: 'Glenmark Pharmaceuticals', cap: 'MID_CAP', sector: 'Pharma', tier: 'PRO' },
+  { symbol: 'LAURUSLABS', name: 'Laurus Labs', cap: 'MID_CAP', sector: 'API Pharma', tier: 'PRO' },
+  { symbol: 'GRANULES', name: 'Granules India', cap: 'SMALL_CAP', sector: 'API Pharma', tier: 'PRO' },
+  { symbol: 'ALKEM', name: 'Alkem Laboratories', cap: 'MID_CAP', sector: 'Pharma', tier: 'PRO' },
+  { symbol: 'METROPOLIS', name: 'Metropolis Healthcare', cap: 'SMALL_CAP', sector: 'Diagnostics', tier: 'PRO' },
+  { symbol: 'LALPATHLAB', name: 'Dr. Lal PathLabs', cap: 'MID_CAP', sector: 'Diagnostics', tier: 'PRO' },
+  { symbol: 'SYNGENE', name: 'Syngene International', cap: 'MID_CAP', sector: 'Research Services', tier: 'PRO' },
+  { symbol: 'NATCOPHARM', name: 'Natco Pharma', cap: 'SMALL_CAP', sector: 'Specialty Pharma', tier: 'PRO' },
+  { symbol: 'MAXHEALTH', name: 'Max Healthcare', cap: 'LARGE_CAP', sector: 'Hospitals', tier: 'PRO' },
+  { symbol: 'FORTIS', name: 'Fortis Healthcare', cap: 'MID_CAP', sector: 'Hospitals', tier: 'PRO' },
+  { symbol: 'KIMS', name: 'KIMS Hospitals', cap: 'MID_CAP', sector: 'Hospitals', tier: 'PRO' },
+  { symbol: 'RAINBOW', name: 'Rainbow Childrens Medicare', cap: 'SMALL_CAP', sector: 'Pediatric Care', tier: 'PRO' },
+  { symbol: 'ASTERDM', name: 'Aster DM Healthcare', cap: 'MID_CAP', sector: 'Hospitals', tier: 'PRO' },
+  { symbol: 'ERIS', name: 'Eris Lifesciences', cap: 'SMALL_CAP', sector: 'Pharma', tier: 'PRO' },
+  { symbol: 'AJANTPHARM', name: 'Ajanta Pharma', cap: 'MID_CAP', sector: 'Pharma', tier: 'PRO' },
+  { symbol: 'JBCHEPHARM', name: 'JB Chemicals & Pharma', cap: 'MID_CAP', sector: 'Pharma', tier: 'PRO' },
+
+  // Capital Goods, Wires, Cables & Industrials
+  { symbol: 'POLYCAB', name: 'Polycab India', cap: 'MID_CAP', sector: 'Cables & Wires', tier: 'PRO' },
+  { symbol: 'KEI', name: 'KEI Industries', cap: 'MID_CAP', sector: 'Cables & Wires', tier: 'PRO' },
+  { symbol: 'HAVELLS', name: 'Havells India', cap: 'LARGE_CAP', sector: 'Consumer Electricals', tier: 'PRO' },
+  { symbol: 'CUMMINSIND', name: 'Cummins India', cap: 'MID_CAP', sector: 'Engines & Power', tier: 'PRO' },
+  { symbol: 'BHARATFORG', name: 'Bharat Forge', cap: 'MID_CAP', sector: 'Forging & Auto', tier: 'PRO' },
+  { symbol: 'VOLTAS', name: 'Voltas Limited', cap: 'MID_CAP', sector: 'AC & Cooling', tier: 'PRO' },
+  { symbol: 'ASTRAL', name: 'Astral Limited', cap: 'MID_CAP', sector: 'Pipes & Adhesives', tier: 'PRO' },
+  { symbol: 'SUPREMEIND', name: 'Supreme Industries', cap: 'MID_CAP', sector: 'Plastics', tier: 'PRO' },
+  { symbol: 'FINCABLES', name: 'Finolex Cables', cap: 'SMALL_CAP', sector: 'Cables', tier: 'PRO' },
+  { symbol: 'THERMAX', name: 'Thermax Limited', cap: 'MID_CAP', sector: 'Energy & Clean Tech', tier: 'PRO' },
+  { symbol: 'AIAENG', name: 'AIA Engineering', cap: 'MID_CAP', sector: 'Industrial Castings', tier: 'PRO' },
+  { symbol: 'TIMKEN', name: 'Timken India', cap: 'MID_CAP', sector: 'Bearings', tier: 'PRO' },
+  { symbol: 'SKFINDIA', name: 'SKF India', cap: 'MID_CAP', sector: 'Bearings', tier: 'PRO' },
+
+  // Banking, NBFC & Fintech Market Infrastructure
+  { symbol: 'CDSL', name: 'Central Depository Services', cap: 'SMALL_CAP', sector: 'Fintech Exchange', tier: 'PRO' },
+  { symbol: 'BSE', name: 'BSE Limited', cap: 'SMALL_CAP', sector: 'Stock Exchange', tier: 'PRO' },
+  { symbol: 'ANGELONE', name: 'Angel One Brokerage', cap: 'SMALL_CAP', sector: 'Fintech Brokerage', tier: 'PRO' },
+  { symbol: 'MCX', name: 'Multi Commodity Exchange', cap: 'MID_CAP', sector: 'Commodities', tier: 'PRO' },
+  { symbol: 'MOTILALOFS', name: 'Motilal Oswal Financial', cap: 'SMALL_CAP', sector: 'Brokerage & AMC', tier: 'PRO' },
+  { symbol: 'KFINTECH', name: 'KFin Technologies', cap: 'SMALL_CAP', sector: 'Fintech Registrar', tier: 'PRO' },
+  { symbol: 'POLICYBZR', name: 'PB Fintech (PolicyBazaar)', cap: 'MID_CAP', sector: 'Insurtech', tier: 'PRO' },
+  { symbol: 'JIOFIN', name: 'Jio Financial Services', cap: 'LARGE_CAP', sector: 'Fintech & NBFC', tier: 'PRO' },
+  { symbol: 'MUTHOOTFIN', name: 'Muthoot Finance', cap: 'MID_CAP', sector: 'Gold Loans', tier: 'PRO' },
+  { symbol: 'MANAPPURAM', name: 'Manappuram Finance', cap: 'SMALL_CAP', sector: 'Gold Loans', tier: 'PRO' },
+  { symbol: 'CHOLAFIN', name: 'Cholamandalam Inv & Fin', cap: 'LARGE_CAP', sector: 'Auto Finance', tier: 'PRO' },
+  { symbol: 'SHRIRAMFIN', name: 'Shriram Finance', cap: 'LARGE_CAP', sector: 'NBFC Commercial', tier: 'PRO' },
+  { symbol: 'POONAWALLA', name: 'Poonawalla Fincorp', cap: 'MID_CAP', sector: 'Consumer Lending', tier: 'PRO' },
+  { symbol: 'CANBK', name: 'Canara Bank', cap: 'MID_CAP', sector: 'PSU Banking', tier: 'PRO' },
+  { symbol: 'PNB', name: 'Punjab National Bank', cap: 'MID_CAP', sector: 'PSU Banking', tier: 'PRO' },
+  { symbol: 'BANKBARODA', name: 'Bank of Baroda', cap: 'MID_CAP', sector: 'PSU Banking', tier: 'PRO' },
+  { symbol: 'FEDERALBNK', name: 'Federal Bank', cap: 'MID_CAP', sector: 'Private Banking', tier: 'PRO' },
+  { symbol: 'IDFCFIRSTB', name: 'IDFC First Bank', cap: 'MID_CAP', sector: 'Private Banking', tier: 'PRO' },
+  { symbol: 'UNIONBANK', name: 'Union Bank of India', cap: 'MID_CAP', sector: 'PSU Banking', tier: 'PRO' },
+  { symbol: 'AUBANK', name: 'AU Small Finance Bank', cap: 'MID_CAP', sector: 'Banking', tier: 'PRO' },
+  { symbol: 'BANDHANBNK', name: 'Bandhan Bank', cap: 'MID_CAP', sector: 'Microfinance', tier: 'PRO' },
+
+  // Auto Ancillaries, EV Batteries & Tyres
+  { symbol: 'EXIDEIND', name: 'Exide Industries', cap: 'SMALL_CAP', sector: 'EV Battery', tier: 'PRO' },
+  { symbol: 'MOTHERSON', name: 'Samvardhana Motherson', cap: 'LARGE_CAP', sector: 'Auto Wiring', tier: 'PRO' },
+  { symbol: 'BOSCHLTD', name: 'Bosch Limited', cap: 'LARGE_CAP', sector: 'Auto Tech', tier: 'PRO' },
+  { symbol: 'BALKRISIND', name: 'Balkrishna Industries', cap: 'MID_CAP', sector: 'Off-Highway Tyres', tier: 'PRO' },
+  { symbol: 'MRF', name: 'MRF Limited', cap: 'MID_CAP', sector: 'Tyres', tier: 'PRO' },
+  { symbol: 'APOLLOTYRE', name: 'Apollo Tyres', cap: 'MID_CAP', sector: 'Tyres', tier: 'PRO' },
+  { symbol: 'CEATLTD', name: 'CEAT Limited', cap: 'SMALL_CAP', sector: 'Tyres', tier: 'PRO' },
+  { symbol: 'ENDURANCE', name: 'Endurance Technologies', cap: 'MID_CAP', sector: 'Auto Castings', tier: 'PRO' },
+  { symbol: 'CRAFTSMAN', name: 'Craftsman Automation', cap: 'SMALL_CAP', sector: 'Precision Auto', tier: 'PRO' },
+  { symbol: 'SONACOMS', name: 'Sona BLW Precision', cap: 'MID_CAP', sector: 'EV Drivetrains', tier: 'PRO' },
+
+  // Retail, Consumer Brands & QSR
+  { symbol: 'TRENT', name: 'Trent (Westside/Zudio)', cap: 'LARGE_CAP', sector: 'Fashion Retail', tier: 'PRO' },
+  { symbol: 'DMART', name: 'Avenue Supermarts (DMart)', cap: 'LARGE_CAP', sector: 'Supermarkets', tier: 'PRO' },
+  { symbol: 'PAGEIND', name: 'Page Industries (Jockey)', cap: 'MID_CAP', sector: 'Innerwear', tier: 'PRO' },
+  { symbol: 'BATAINDIA', name: 'Bata India', cap: 'MID_CAP', sector: 'Footwear', tier: 'PRO' },
+  { symbol: 'DEVYANI', name: 'Devyani International (KFC)', cap: 'MID_CAP', sector: 'QSR Dining', tier: 'PRO' },
+  { symbol: 'SAPPHIRE', name: 'Sapphire Foods (Pizza Hut)', cap: 'SMALL_CAP', sector: 'QSR Dining', tier: 'PRO' },
+  { symbol: 'JUBLFOOD', name: 'Jubilant FoodWorks (Dominos)', cap: 'MID_CAP', sector: 'QSR Dining', tier: 'PRO' },
+  { symbol: 'TATAINVEST', name: 'Tata Investment Corp', cap: 'MID_CAP', sector: 'Holding Co', tier: 'PRO' },
+  { symbol: 'KALYANKJIL', name: 'Kalyan Jewellers', cap: 'MID_CAP', sector: 'Jewellery', tier: 'PRO' },
+  { symbol: 'COLPAL', name: 'Colgate-Palmolive', cap: 'LARGE_CAP', sector: 'Oral Care', tier: 'PRO' },
+  { symbol: 'DABUR', name: 'Dabur India', cap: 'LARGE_CAP', sector: 'Ayurveda FMCG', tier: 'PRO' },
+  { symbol: 'MARICO', name: 'Marico Limited', cap: 'LARGE_CAP', sector: 'Hair & Edibles', tier: 'PRO' },
+  { symbol: 'GODREJCP', name: 'Godrej Consumer Products', cap: 'LARGE_CAP', sector: 'Personal Care', tier: 'PRO' },
+  { symbol: 'PIDILITIND', name: 'Pidilite Industries (Fevicol)', cap: 'LARGE_CAP', sector: 'Adhesives', tier: 'PRO' },
+  { symbol: 'BERGEPAINT', name: 'Berger Paints', cap: 'LARGE_CAP', sector: 'Paints', tier: 'PRO' },
+
+  // Metals, Mining & Specialty Chemicals
+  { symbol: 'VEDL', name: 'Vedanta Limited', cap: 'LARGE_CAP', sector: 'Mining & Metals', tier: 'PRO' },
+  { symbol: 'NMDC', name: 'NMDC Iron Ore', cap: 'MID_CAP', sector: 'Mining', tier: 'PRO' },
+  { symbol: 'NATIONALUM', name: 'National Aluminium', cap: 'MID_CAP', sector: 'Aluminium', tier: 'PRO' },
+  { symbol: 'SAIL', name: 'Steel Authority of India', cap: 'MID_CAP', sector: 'Steel', tier: 'PRO' },
+  { symbol: 'JINDALSTEL', name: 'Jindal Steel & Power', cap: 'LARGE_CAP', sector: 'Steel', tier: 'PRO' },
+  { symbol: 'HINDCOPPER', name: 'Hindustan Copper', cap: 'MID_CAP', sector: 'Copper', tier: 'PRO' },
+  { symbol: 'DEEPAKNTR', name: 'Deepak Nitrite', cap: 'MID_CAP', sector: 'Chemicals', tier: 'PRO' },
+  { symbol: 'TATACHEM', name: 'Tata Chemicals', cap: 'MID_CAP', sector: 'Soda Ash', tier: 'PRO' },
+  { symbol: 'SRF', name: 'SRF Limited', cap: 'LARGE_CAP', sector: 'Specialty Chemicals', tier: 'PRO' },
+  { symbol: 'ATGL', name: 'Adani Total Gas', cap: 'MID_CAP', sector: 'City Gas', tier: 'PRO' },
+  { symbol: 'IGL', name: 'Indraprastha Gas', cap: 'MID_CAP', sector: 'City Gas', tier: 'PRO' },
+  { symbol: 'MGL', name: 'Mahanagar Gas', cap: 'MID_CAP', sector: 'City Gas', tier: 'PRO' },
+  { symbol: 'PETRONET', name: 'Petronet LNG', cap: 'MID_CAP', sector: 'LNG Terminal', tier: 'PRO' },
+  { symbol: 'JUBLINGREA', name: 'Jubilant Ingrevia', cap: 'SMALL_CAP', sector: 'Chemicals', tier: 'PRO' },
+
+  // Real Estate & Building Materials
+  { symbol: 'DLF', name: 'DLF Limited', cap: 'LARGE_CAP', sector: 'Real Estate', tier: 'PRO' },
+  { symbol: 'GODREJPROP', name: 'Godrej Properties', cap: 'LARGE_CAP', sector: 'Residential Realty', tier: 'PRO' },
+  { symbol: 'LODHA', name: 'Macrotech Developers (Lodha)', cap: 'LARGE_CAP', sector: 'Real Estate', tier: 'PRO' },
+  { symbol: 'OBEROIRLTY', name: 'Oberoi Realty', cap: 'MID_CAP', sector: 'Luxury Realty', tier: 'PRO' },
+  { symbol: 'PRESTIGE', name: 'Prestige Estates', cap: 'MID_CAP', sector: 'Commercial & Resi', tier: 'PRO' },
+  { symbol: 'PHOENIXLTD', name: 'The Phoenix Mills', cap: 'MID_CAP', sector: 'Retail Malls', tier: 'PRO' },
+  { symbol: 'BRIGADE', name: 'Brigade Enterprises', cap: 'SMALL_CAP', sector: 'South India Realty', tier: 'PRO' },
+  { symbol: 'SOBHA', name: 'Sobha Limited', cap: 'SMALL_CAP', sector: 'Premium Housing', tier: 'PRO' },
+  { symbol: 'SUNTECK', name: 'Sunteck Realty', cap: 'SMALL_CAP', sector: 'Luxury Realty', tier: 'PRO' },
+  { symbol: 'CENTURYPLY', name: 'Century Plyboards', cap: 'SMALL_CAP', sector: 'Plywood', tier: 'PRO' },
+  { symbol: 'KAJARIACER', name: 'Kajaria Ceramics', cap: 'SMALL_CAP', sector: 'Tiles', tier: 'PRO' }
+];
+
+function getUniverseByTier(tier = 'PRO') {
+  if (tier === 'FREE') {
+    return UNIVERSE_200.filter(s => s.tier === 'FREE');
+  }
+  return UNIVERSE_200; // PRO gets all 200
+}
+
+module.exports = {
+  UNIVERSE_200,
+  getUniverseByTier
+};

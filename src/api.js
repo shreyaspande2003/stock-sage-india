@@ -33,8 +33,8 @@ async function apiFetch(path, options = {}) {
 export const searchStocks = (query) => apiFetch(`/stocks/search?q=${encodeURIComponent(query)}`);
 export const getQuote = (symbol) => apiFetch(`/stocks/quote/${symbol}`);
 export const getHistorical = (symbol, range = '6mo') => apiFetch(`/stocks/historical/${symbol}?range=${range}`);
-export const scanSwingSetups = () => apiFetch('/stocks/scan');
-export const getMorningTriggers = () => apiFetch('/stocks/morning-triggers');
+export const scanSwingSetups = (tier = 'PRO') => apiFetch(`/stocks/scan?tier=${tier}`);
+export const getMorningTriggers = (tier = 'PRO') => apiFetch(`/stocks/morning-triggers?tier=${tier}`);
 export const getMarketRegime = () => apiFetch('/stocks/regime');
 export const getBacktestResults = () => apiFetch('/stocks/backtest');
 

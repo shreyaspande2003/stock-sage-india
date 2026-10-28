@@ -173,15 +173,15 @@ async function analyzeStockTrigger(item, sessionInfo) {
   };
 }
 
-async function getMorningBreakoutTriggers() {
-  const cacheKey = 'morning:breakout:triggers';
+async function getMorningBreakoutTriggers(tier = 'PRO') {
+  const cacheKey = `morning:breakout:triggers:${tier}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
   const sessionInfo = getMarketSessionInfo();
-  const universe = getActiveUniverse();
+  const universe = getActiveUniverse(tier);
 
-  const results = await mapPool(universe, 3, async (item) => {
+  const results = await mapPool(universe, 6, async (item) => {
     try {
       return await analyzeStockTrigger(item, sessionInfo);
     } catch (err) {
