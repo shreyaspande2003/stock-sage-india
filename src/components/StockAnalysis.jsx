@@ -527,6 +527,280 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
         );
       })()}
 
+      {/* ═══════ PROFIT MAXIMIZER — Advanced Profit-Maximizing Strategies ═══════ */}
+      {(() => {
+        const pm = data.profitMaximizer;
+        if (!pm) return null;
+
+        const gradeColors = {
+          'S': '#ff6b2b', 'A': '#10b981', 'B': '#f59e0b', 'C': '#94a3b8', 'D': '#ef4444'
+        };
+        const gradeColor = gradeColors[pm.profitGrade] || '#94a3b8';
+
+        return (
+          <div className="glass-card fade-in-up" style={{
+            marginBottom: '1.75rem',
+            padding: '1.75rem',
+            borderRadius: 'var(--radius-lg)',
+            border: `1px solid rgba(255, 107, 43, 0.35)`,
+            background: 'linear-gradient(180deg, rgba(255, 107, 43, 0.06) 0%, rgba(15, 23, 42, 0.8) 100%)',
+            boxShadow: '0 12px 36px rgba(0, 0, 0, 0.35), 0 0 20px rgba(255, 107, 43, 0.08)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Top glowing accent bar */}
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${gradeColor}, #f59e0b, #8b5cf6)` }} />
+
+            {/* Header: Profit Maximizer Title + Grade */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <span style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.12em', color: gradeColor, fontWeight: 800 }}>
+                    🧠 PROFIT MAXIMIZER ENGINE
+                  </span>
+                  <span style={{ fontSize: '0.62rem', padding: '0.12rem 0.5rem', borderRadius: '1rem', background: `rgba(255, 107, 43, 0.15)`, color: gradeColor, fontWeight: 700 }}>
+                    KELLY + ATR + MULTI-TF
+                  </span>
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 900, color: gradeColor, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+                  {pm.profitLabel}
+                </div>
+              </div>
+
+              {/* Profit Grade Tile */}
+              <div style={{ background: 'rgba(0, 0, 0, 0.35)', border: `1px solid ${gradeColor}40`, padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                <div className="text-xs text-muted" style={{ fontWeight: 600 }}>PROFIT GRADE</div>
+                <div className="font-mono" style={{ fontSize: '2.5rem', fontWeight: 900, color: gradeColor, lineHeight: 1 }}>{pm.profitGrade}</div>
+                <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  {pm.enhancedQuantScore}/100 Enhanced
+                </div>
+              </div>
+            </div>
+
+            {/* Expected Value Banner */}
+            <div style={{
+              padding: '0.75rem 1rem',
+              background: pm.expectedValue > 0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+              border: `1px solid ${pm.expectedValue > 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+              borderRadius: 'var(--radius-md)',
+              marginBottom: '1.25rem',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}>
+              <span style={{ fontSize: '1rem' }}>{pm.expectedValue > 0 ? '📈' : '📉'}</span>
+              <div>
+                <strong style={{ color: pm.expectedValue > 0 ? 'var(--color-buy)' : 'var(--color-sell)' }}>
+                  Expected Value: {pm.expectedValue > 0 ? '+' : ''}{pm.expectedValue}% per trade
+                </strong>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: '0.15rem' }}>
+                  {pm.expectedValueNote}
+                </div>
+              </div>
+            </div>
+
+            {/* 3-Column Strategy Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '0.85rem', marginBottom: '1.25rem' }}>
+
+              {/* Dynamic Position Sizing Card */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem' }}>⚖️</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent-cyan)' }}>
+                    Dynamic Position Sizing
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.82rem' }}>
+                  <div>
+                    <div className="text-xs text-muted">Shares</div>
+                    <div className="font-mono" style={{ fontWeight: 800, fontSize: '1.15rem', color: '#fff' }}>
+                      {pm.dynamicPosition?.shares || 0}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted">Capital</div>
+                    <div className="font-mono" style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>
+                      ₹{(pm.dynamicPosition?.capitalDeployed || 0).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted">Risk</div>
+                    <div className="font-mono" style={{ fontWeight: 600, color: 'var(--color-sell)' }}>
+                      ₹{pm.dynamicPosition?.riskAmount || 0} ({pm.dynamicPosition?.effectiveRiskPct || 0}%)
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted">Method</div>
+                    <span className="badge badge-neutral" style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem' }}>
+                      {pm.dynamicPosition?.method?.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', marginTop: '0.5rem', lineHeight: 1.4 }}>
+                  Kelly: {pm.dynamicPosition?.kellyFraction || 0}% · Half-Kelly: {pm.dynamicPosition?.halfKelly || 0}% · Conviction: {pm.dynamicPosition?.convictionMult || 0}x · Vol Adj: {pm.dynamicPosition?.volAdjust || 0}x
+                </div>
+              </div>
+
+              {/* Multi-Timeframe Confluence Card */}
+              <div style={{
+                background: pm.mtfConfluence?.weeklyAligned ? 'rgba(16, 185, 129, 0.04)' : 'rgba(245, 158, 11, 0.04)',
+                padding: '1rem',
+                borderRadius: 'var(--radius-sm)',
+                border: `1px solid ${pm.mtfConfluence?.weeklyAligned ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem' }}>📐</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: pm.mtfConfluence?.weeklyAligned ? 'var(--color-buy)' : '#f59e0b' }}>
+                    Multi-Timeframe Confluence
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                  <span className={`badge ${pm.mtfConfluence?.weeklyAligned ? 'badge-strong-buy' : 'badge-hold'}`} style={{ fontSize: '0.62rem' }}>
+                    {pm.mtfConfluence?.weeklyTrend?.replace(/_/g, ' ')}
+                  </span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
+                    {pm.mtfConfluence?.confluenceBonus > 0 ? `+${pm.mtfConfluence.confluenceBonus} pts` : pm.mtfConfluence?.confluenceBonus < 0 ? `${pm.mtfConfluence.confluenceBonus} pts` : '—'}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+                  <div>
+                    <span className="text-xs text-muted">Weekly 10 EMA</span>
+                    <div className="font-mono" style={{ fontWeight: 600, color: '#fff' }}>₹{pm.mtfConfluence?.weeklyEma10 || '—'}</div>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted">Weekly 30 EMA</span>
+                    <div className="font-mono" style={{ fontWeight: 600, color: '#fff' }}>₹{pm.mtfConfluence?.weeklyEma30 || '—'}</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', lineHeight: 1.4 }}>
+                  Weekly RSI: {pm.mtfConfluence?.weeklyRSI || '—'} · {pm.mtfConfluence?.weeklyAligned ? '✅ Daily trades have higher follow-through' : '⚠️ Weekly headwind — reduce size by 40%'}
+                </div>
+              </div>
+
+              {/* Adaptive Trailing Stop Card */}
+              <div style={{ background: 'rgba(139, 92, 246, 0.04)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(139, 92, 246, 0.25)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem' }}>🎚️</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#c084fc' }}>
+                    Adaptive Trailing Stop
+                  </span>
+                </div>
+                <div className="font-mono" style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fff', marginBottom: '0.35rem' }}>
+                  ₹{pm.adaptiveTrail?.trailingStop || '—'}
+                </div>
+                <span className="badge badge-neutral" style={{ fontSize: '0.6rem', padding: '0.1rem 0.35rem', marginBottom: '0.4rem', display: 'inline-block', color: '#c084fc', borderColor: 'rgba(139, 92, 246, 0.3)' }}>
+                  {pm.adaptiveTrail?.method?.replace(/_/g, ' ')}
+                </span>
+                {/* 5-Phase Visual */}
+                <div style={{ display: 'flex', gap: '2px', marginTop: '0.4rem', marginBottom: '0.3rem' }}>
+                  {pm.adaptiveTrail?.phases?.map((phase, idx) => (
+                    <div key={idx} style={{
+                      flex: 1,
+                      height: '4px',
+                      borderRadius: '2px',
+                      background: phase.active ? '#c084fc' : 'rgba(255, 255, 255, 0.06)',
+                      transition: 'background 0.3s ease',
+                    }} title={`${phase.range}: ${phase.method}`} />
+                  ))}
+                </div>
+                <div style={{ fontSize: '0.62rem', color: 'var(--text-tertiary)', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>ATR</span><span>Chandelier</span><span>10E</span><span>20E</span><span>50E</span>
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', marginTop: '0.35rem', lineHeight: 1.4 }}>
+                  {pm.adaptiveTrail?.explanation || ''}
+                </div>
+              </div>
+            </div>
+
+            {/* ═══ Pyramiding Plan ═══ */}
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: 'var(--radius-md)',
+              padding: '1rem',
+              marginBottom: '1rem',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span style={{ fontSize: '0.85rem' }}>🪜</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#fff' }}>
+                    Pyramiding Plan — Average Up into Winners
+                  </span>
+                </div>
+                <span className={`badge ${pm.pyramidPlan?.canPyramid ? 'badge-strong-buy' : 'badge-neutral'}`} style={{ fontSize: '0.6rem' }}>
+                  {pm.pyramidPlan?.canPyramid ? '✅ ACTIVE' : '⏳ PENDING'}
+                </span>
+              </div>
+
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.65rem', lineHeight: 1.45 }}>
+                {pm.pyramidPlan?.rationale}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem' }}>
+                {pm.pyramidPlan?.pyramidLevels?.map((lvl) => (
+                  <div key={lvl.level} style={{
+                    background: lvl.status === 'TRIGGERED' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                    border: `1px solid ${lvl.status === 'TRIGGERED' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.06)'}`,
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.65rem',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.25rem' }}>
+                      <span style={{
+                        width: '16px', height: '16px', borderRadius: '50%',
+                        background: lvl.status === 'TRIGGERED' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.06)',
+                        color: lvl.status === 'TRIGGERED' ? 'var(--color-buy)' : 'var(--text-tertiary)',
+                        fontSize: '0.62rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800
+                      }}>{lvl.level}</span>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: lvl.status === 'TRIGGERED' ? 'var(--color-buy)' : 'var(--text-secondary)' }}>
+                        Pyramid at {lvl.requiredGain}
+                      </span>
+                    </div>
+                    <div className="font-mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>
+                      ₹{lvl.triggerPrice}
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', marginTop: '0.2rem' }}>
+                      +{lvl.addShares} shares · Stop → ₹{lvl.newStopLoss}
+                    </div>
+                    <div style={{ fontSize: '0.62rem', color: 'var(--text-tertiary)', marginTop: '0.15rem', lineHeight: 1.35 }}>
+                      {lvl.note}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {pm.pyramidPlan?.maxTotalShares > 0 && (
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: '0.65rem', textAlign: 'center' }}>
+                  Max Total Position: <strong className="font-mono" style={{ color: '#fff' }}>{pm.pyramidPlan.maxTotalShares} shares</strong> (base {pm.dynamicPosition?.shares} + {pm.pyramidPlan.totalPyramidShares} pyramid adds)
+                </div>
+              )}
+            </div>
+
+            {/* ═══ Pro Tips ═══ */}
+            {pm.profitTips?.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '0.6rem' }}>
+                {pm.profitTips.map((tip, idx) => (
+                  <div key={idx} style={{
+                    padding: '0.65rem 0.85rem',
+                    background: 'rgba(0, 0, 0, 0.25)',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.75rem',
+                    lineHeight: 1.45,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.25rem' }}>
+                      <span>{tip.icon}</span>
+                      <strong style={{ color: '#fff', fontSize: '0.72rem' }}>{tip.title}</strong>
+                    </div>
+                    <div style={{ color: 'var(--text-tertiary)' }}>{tip.tip}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* ═══════ PORTFOLIO CONTEXT (if you hold this stock) ═══════ */}
       {holding && (
         <div className="fade-in-up" style={{ marginBottom: '1.5rem', padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(16, 185, 129, 0.4)', background: 'rgba(16, 185, 129, 0.05)' }}>

@@ -8,11 +8,12 @@ const cache = require('../utils/cache.cjs');
 
 const { getMarketRegime } = require('./regimeEngine.cjs');
 const { calculateRelativeStrength } = require('./rsEngine.cjs');
+const { generateProfitMaximizerPacket } = require('./profitMaximizerEngine.cjs');
 
 async function aggregateStockData(symbol, options = {}) {
-  const cacheKey = `aggregate:v3:${symbol}`;
+  const cacheKey = `aggregate:v5:${symbol}`;
   const cached = cache.get(cacheKey);
-  if (cached && cached.quantConsensus) return cached;
+  if (cached && cached.quantConsensus && cached.profitMaximizer) return cached;
 
   console.log(`[DataAggregator] Collecting data for ${symbol}...`);
 
@@ -51,6 +52,16 @@ async function aggregateStockData(symbol, options = {}) {
   const { calculateQuantConsensus } = require('./quantConsensusEngine.cjs');
   const quantConsensus = calculateQuantConsensus(quoteData, technicals, hist6m, swingPlaybook, regimeData, uniqueNews, redditData);
 
+  // Profit Maximizer Engine — Dynamic sizing, pyramiding, multi-TF, trailing stops
+  const profitMaximizer = generateProfitMaximizerPacket({
+    quote: quoteData,
+    technicals,
+    historical: hist6m,
+    swingPlaybook,
+    quantScore: quantConsensus.score,
+    marketRegime: regimeData,
+  });
+
   const packet = {
     symbol: symbol.toUpperCase(),
     fetchedAt: new Date().toISOString(),
@@ -60,6 +71,7 @@ async function aggregateStockData(symbol, options = {}) {
     technicals,
     swingPlaybook,
     quantConsensus,
+    profitMaximizer,
     news: uniqueNews,
     reddit: redditData,
     chartData: hist6m.map(d => ({
@@ -74,7 +86,7 @@ async function aggregateStockData(symbol, options = {}) {
   };
 
   cache.set(cacheKey, packet, 600);
-  console.log(`[DataAggregator] Data packet ready for ${symbol}`);
+  console.log(`[DataAggregator] Data packet ready for ${symbol} (Profit Maximizer: ${profitMaximizer.profitGrade})`);
   return packet;
 }
 

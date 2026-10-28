@@ -22,6 +22,7 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
   });
   const [error, setError] = useState('');
   const searchRef = useRef(null);
+  const debounceRef = useRef(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
   // High-fidelity institutional chime using native Web Audio API
