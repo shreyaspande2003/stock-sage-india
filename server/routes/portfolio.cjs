@@ -33,41 +33,82 @@ async function processEnrichedPortfolio(holdings) {
       const pnlPercent = investedValue > 0 ? ((pnl / investedValue) * 100) : 0;
       const roundedPnlPct = Math.round(pnlPercent * 100) / 100;
 
-      // Institutional quant action & levels
-      const targetPrice = Math.round(holding.buyPrice * 1.08 * 10) / 10;
-      const stopLossPrice = Math.round(holding.buyPrice * 0.94 * 10) / 10;
-      let quantAction = {
-        badge: 'HOLD_IN_BASE',
-        label: 'HOLD BASE',
-        variant: 'cyan',
-        detail: 'Position within normal noise tolerance (-3% to +6%). Hold base and let setup develop.',
-      };
+      const isSwing = (holding.strategy || 'LONG_TERM').toUpperCase() === 'SWING';
+      const strategy = isSwing ? 'SWING' : 'LONG_TERM';
 
-      if (roundedPnlPct >= 12) {
+      let targetPrice, stopLossPrice, quantAction;
+
+      if (isSwing) {
+        // High-velocity Swing Trading Rules (Tight stops, quick profit banking)
+        targetPrice = Math.round(holding.buyPrice * 1.08 * 10) / 10;
+        stopLossPrice = Math.round(holding.buyPrice * 0.94 * 10) / 10;
         quantAction = {
-          badge: 'RIDE_RUNNER',
-          label: 'RIDE RUNNER',
-          variant: 'success',
-          detail: `Up +${roundedPnlPct}%. Super-winner status. Trail stop up to 20-EMA / ₹${Math.round(currentPrice * 0.93)} to capture multi-week trend.`,
+          badge: 'HOLD_IN_BASE',
+          label: 'HOLD BASE ⏳',
+          variant: 'cyan',
+          detail: 'Swing trade within normal noise tolerance (-3% to +6%). Hold base and let setup develop.',
         };
-      } else if (roundedPnlPct >= 7) {
+
+        if (roundedPnlPct >= 12) {
+          quantAction = {
+            badge: 'RIDE_RUNNER',
+            label: 'RIDE RUNNER 🏃',
+            variant: 'success',
+            detail: `Up +${roundedPnlPct}%. Super-winner status. Trail stop up to 20-EMA / ₹${Math.round(currentPrice * 0.93)} to capture multi-week trend.`,
+          };
+        } else if (roundedPnlPct >= 7) {
+          quantAction = {
+            badge: 'BANK_PROFIT_T1',
+            label: 'BOOK 50% (T1) 💰',
+            variant: 'emerald',
+            detail: `Up +${roundedPnlPct}%. Swing Target 1 reached. Sell 50% shares at market to bank gains; move stop on remaining 50% to Breakeven (₹${holding.buyPrice}).`,
+          };
+        } else if (roundedPnlPct <= -5.5) {
+          quantAction = {
+            badge: 'CUT_LOSS',
+            label: 'CUT LOSS 🛑',
+            variant: 'danger',
+            detail: `Down ${roundedPnlPct}%. Swing risk threshold (-5.5% to -6%) breached. Exit immediately to preserve trading equity.`,
+          };
+        }
+      } else {
+        // Long-Term Core Compounding Rules (Multi-year horizon, dip accumulation, thesis review)
+        targetPrice = Math.round(holding.buyPrice * 1.30 * 10) / 10;
+        stopLossPrice = Math.round(holding.buyPrice * 0.80 * 10) / 10;
         quantAction = {
-          badge: 'BANK_PROFIT_T1',
-          label: 'BOOK 50% (T1)',
-          variant: 'emerald',
-          detail: `Up +${roundedPnlPct}%. Swing Target 1 reached. Sell 50% shares at market to bank gains; move stop on remaining 50% to Breakeven (₹${holding.buyPrice}).`,
+          badge: 'CORE_HOLD',
+          label: 'CORE HOLD 💎',
+          variant: 'cyan',
+          detail: 'Long-term core position within normal market fluctuations. Hold through noise for multi-year compounding.',
         };
-      } else if (roundedPnlPct <= -5.5) {
-        quantAction = {
-          badge: 'CUT_LOSS',
-          label: 'CUT LOSS',
-          variant: 'danger',
-          detail: `Down ${roundedPnlPct}%. Swing risk threshold (-5.5% to -6%) breached. Exit immediately to preserve trading equity.`,
-        };
+
+        if (roundedPnlPct >= 25) {
+          quantAction = {
+            badge: 'CORE_COMPOUNDER',
+            label: 'COMPOUNDING 🚀',
+            variant: 'success',
+            detail: `Up +${roundedPnlPct}%. Core multi-year winner compounding nicely. Let profits accumulate.`,
+          };
+        } else if (roundedPnlPct <= -25) {
+          quantAction = {
+            badge: 'REVIEW_THESIS',
+            label: 'REVIEW THESIS ⚠️',
+            variant: 'danger',
+            detail: `Down ${roundedPnlPct}%. Major drawdown. Review company earnings growth, balance sheet debt, and governance before adding more.`,
+          };
+        } else if (roundedPnlPct <= -10) {
+          quantAction = {
+            badge: 'ACCUMULATE_DIP',
+            label: 'ACCUMULATE DIP 🛒',
+            variant: 'emerald',
+            detail: `Down ${roundedPnlPct}%. Long-term value zone. Strategic value-averaging / SIP addition is permitted if fundamental business model is intact.`,
+          };
+        }
       }
 
       return {
         ...holding,
+        strategy,
         name: quote.name || meta.name || sym,
         sector: meta.sector || quote.sector || 'Equities',
         cap: meta.cap || 'MID_CAP',
@@ -83,8 +124,11 @@ async function processEnrichedPortfolio(holdings) {
       };
     } catch (err) {
       const investedValue = holding.buyPrice * holding.quantity;
+      const isSwing = (holding.strategy || 'LONG_TERM').toUpperCase() === 'SWING';
+      const strategy = isSwing ? 'SWING' : 'LONG_TERM';
       return {
         ...holding,
+        strategy,
         name: meta.name || sym,
         sector: meta.sector || 'Equities',
         cap: meta.cap || 'MID_CAP',
@@ -95,11 +139,11 @@ async function processEnrichedPortfolio(holdings) {
         pnl: 0,
         pnlPercent: 0,
         dayChange: 0,
-        targetPrice: Math.round(holding.buyPrice * 1.08),
-        stopLossPrice: Math.round(holding.buyPrice * 0.94),
+        targetPrice: Math.round(holding.buyPrice * (isSwing ? 1.08 : 1.30)),
+        stopLossPrice: Math.round(holding.buyPrice * (isSwing ? 0.94 : 0.80)),
         quantAction: {
-          badge: 'HOLD_IN_BASE',
-          label: 'HOLD BASE',
+          badge: isSwing ? 'HOLD_IN_BASE' : 'CORE_HOLD',
+          label: isSwing ? 'HOLD BASE ⏳' : 'CORE HOLD 💎',
           variant: 'cyan',
           detail: 'No live quote available; maintaining cost-basis stop and target.',
         },
@@ -167,6 +211,7 @@ router.post('/upload', upload.single('portfolio'), async (req, res) => {
       quantity: parseFloat(row[columnMap.quantity]) || 0,
       buyPrice: parseFloat(row[columnMap.buyPrice]) || 0,
       buyDate: row[columnMap.buyDate] || '',
+      strategy: (row[columnMap.strategy] || 'LONG_TERM').toUpperCase().includes('SWING') ? 'SWING' : 'LONG_TERM',
     })).filter(h => h.symbol && h.quantity > 0);
 
     if (holdings.length === 0) {
@@ -196,6 +241,7 @@ router.post('/manual', async (req, res) => {
       quantity: parseFloat(h.quantity) || 0,
       buyPrice: parseFloat(h.buyPrice) || 0,
       buyDate: h.buyDate || new Date().toISOString().split('T')[0],
+      strategy: (h.strategy || 'LONG_TERM').toUpperCase() === 'SWING' ? 'SWING' : 'LONG_TERM',
     })).filter(h => h.symbol && h.quantity > 0);
 
     if (cleanHoldings.length === 0) {
@@ -257,6 +303,9 @@ function generateDeterministicPortfolioAnalysis(holdings, totalInvested, totalCu
   const losers = holdings.filter(h => (h.pnl || (h.currentPrice - h.buyPrice) * h.quantity) < 0);
   const healthScore = Math.min(95, Math.max(35, Math.round(55 + (pnlPct * 1.2) + (winners.length >= losers.length ? 10 : -10))));
 
+  const swingHoldings = holdings.filter(h => (h.strategy || 'LONG_TERM').toUpperCase() === 'SWING');
+  const longTermHoldings = holdings.filter(h => (h.strategy || 'LONG_TERM').toUpperCase() !== 'SWING');
+
   // Dynamic real sector allocation calculation
   const sectorSums = {};
   for (const h of holdings) {
@@ -276,45 +325,80 @@ function generateDeterministicPortfolioAnalysis(holdings, totalInvested, totalCu
     ? 'Under-diversified (< 4 stocks). Vulnerable to idiosyncratic stock gaps. Target 6-8 positions across distinct sectors.'
     : `Well balanced. Top sector (${topSector ? topSector.sector : 'General'}) represents ${topSector ? topSector.percentage : 0}% of portfolio.`;
 
-  const profitBooking = winners.filter(w => (w.pnlPercent || 0) >= 7).map(w => ({
-    symbol: w.symbol,
-    action: (w.pnlPercent || 0) >= 12 ? 'TRAIL_STOP_20EMA' : 'SCALE_OUT_50_PCT',
-    targetPrice: Math.round(w.currentPrice * 1.05),
-    quantity: (w.pnlPercent || 0) >= 12 ? 'Keep 100% with trailing stop' : 'Sell 50% shares',
-    reasoning: (w.pnlPercent || 0) >= 12
-      ? `Runner position up +${(w.pnlPercent || 0).toFixed(1)}%. Trail stop to 20-DMA (₹${Math.round(w.currentPrice * 0.93)}) to milk trend without capping upside.`
-      : `Swing Target 1 reached (+${(w.pnlPercent || 0).toFixed(1)}%). Bank half gains to secure positive expectancy, move stop on rest to breakeven.`
+  // Profit Booking (Differentiates swing profit banking from core multi-year compounding)
+  const profitBooking = [
+    ...swingHoldings.filter(w => (w.pnlPercent || 0) >= 7).map(w => ({
+      symbol: w.symbol,
+      strategy: 'SWING',
+      action: (w.pnlPercent || 0) >= 12 ? 'TRAIL_STOP_20EMA' : 'SCALE_OUT_50_PCT',
+      targetPrice: Math.round(w.currentPrice * 1.05),
+      quantity: (w.pnlPercent || 0) >= 12 ? 'Keep 100% with trailing stop' : 'Sell 50% shares',
+      reasoning: (w.pnlPercent || 0) >= 12
+        ? `Swing runner up +${(w.pnlPercent || 0).toFixed(1)}%. Trail stop to 20-DMA (₹${Math.round(w.currentPrice * 0.93)}) to capture trend.`
+        : `Swing Target 1 reached (+${(w.pnlPercent || 0).toFixed(1)}%). Bank half gains to secure positive expectancy, move stop on rest to breakeven.`
+    })),
+    ...longTermHoldings.filter(w => (w.pnlPercent || 0) >= 30).map(w => ({
+      symbol: w.symbol,
+      strategy: 'LONG_TERM',
+      action: 'CORE_COMPOUND_HOLD',
+      targetPrice: Math.round(w.currentPrice * 1.25),
+      quantity: 'Hold core position',
+      reasoning: `Up +${(w.pnlPercent || 0).toFixed(1)}%. Core multi-year compounder doing its job. Let profits accumulate; trim only if single position exceeds 25% of portfolio.`
+    }))
+  ];
+
+  // Loss Cutting ONLY applies to active Swing Trades!
+  const lossCutting = swingHoldings.filter(l => (l.pnlPercent || 0) <= -5.5).map(l => ({
+    symbol: l.symbol,
+    strategy: 'SWING',
+    action: 'CUT_SWING_LOSS',
+    reasoning: `Active swing trade down ${(l.pnlPercent || 0).toFixed(1)}%. Violates strict -5.5% swing stop rule. Cut now to protect trading capital.`
   }));
 
-  const lossCutting = losers.filter(l => (l.pnlPercent || 0) <= -5.5).map(l => ({
-    symbol: l.symbol,
-    action: 'CUT_LOSS_IMMEDIATELY',
-    reasoning: `Position down ${(l.pnlPercent || 0).toFixed(1)}%. Violates strict -5.5% swing stop rule. Cut now to prevent single-stock ruin.`
+  // Dip Accumulation for Long-Term Core holdings
+  const dipAccumulation = longTermHoldings.filter(h => (h.pnlPercent || 0) <= -10 && (h.pnlPercent || 0) > -25).map(h => ({
+    symbol: h.symbol,
+    strategy: 'LONG_TERM',
+    action: 'ACCUMULATE_ON_DIPS',
+    reasoning: `Core holding down ${(h.pnlPercent || 0).toFixed(1)}%. Normal cyclical correction. Strategic SIP / value accumulation is permitted if fundamentals remain sound.`
+  }));
+
+  const thesisReview = longTermHoldings.filter(h => (h.pnlPercent || 0) <= -25).map(h => ({
+    symbol: h.symbol,
+    strategy: 'LONG_TERM',
+    action: 'REVIEW_FUNDAMENTALS',
+    reasoning: `Core holding down ${(h.pnlPercent || 0).toFixed(1)}%. Deep structural breakdown. Verify quarterly EPS growth, balance sheet debt, and governance before adding further.`
   }));
 
   const rebalance = holdings.map(h => {
     const val = h.currentValue || (h.currentPrice * h.quantity);
     const alloc = totalCurrent > 0 ? (val / totalCurrent) * 100 : 0;
+    const isSwing = (h.strategy || 'LONG_TERM').toUpperCase() === 'SWING';
     let direction = 'HOLD';
     let targetAllocation = `${Math.round(alloc)}%`;
-    let reasoning = 'Allocation healthy within risk boundaries.';
+    let reasoning = isSwing ? 'Swing allocation within risk boundaries.' : 'Core long-term investment holding.';
 
     if (alloc > 25) {
       direction = 'DECREASE';
       targetAllocation = 'Trim to 15-20%';
       reasoning = `Overweight: Single stock represents ${Math.round(alloc)}% of equity (institutional limit is 20%).`;
-    } else if ((h.pnlPercent || 0) <= -5.5) {
+    } else if (isSwing && (h.pnlPercent || 0) <= -5.5) {
       direction = 'EXIT';
       targetAllocation = '0%';
-      reasoning = 'Stop loss breached. Exit position to preserve cash.';
-    } else if ((h.pnlPercent || 0) >= 8) {
+      reasoning = 'Swing stop loss breached. Exit position to preserve cash.';
+    } else if (isSwing && (h.pnlPercent || 0) >= 8) {
       direction = 'TRIM_TO_LOCK';
       targetAllocation = `${Math.max(5, Math.round(alloc * 0.5))}%`;
-      reasoning = 'Bank 50% partial profit and let remaining ride.';
+      reasoning = 'Bank 50% partial profit on swing trade and let remaining ride.';
+    } else if (!isSwing && (h.pnlPercent || 0) <= -10) {
+      direction = 'ACCUMULATE';
+      targetAllocation = `${Math.min(20, Math.round(alloc + 5))}%`;
+      reasoning = 'Value dip in core holding. Opportunity for staggered accumulation.';
     }
 
     return {
       symbol: h.symbol,
+      strategy: isSwing ? 'SWING' : 'LONG_TERM',
       direction,
       targetAllocation,
       reasoning
@@ -342,17 +426,20 @@ function generateDeterministicPortfolioAnalysis(holdings, totalInvested, totalCu
 
   return {
     portfolioHealthScore: healthScore,
-    overallAssessment: `Portfolio valuation: ₹${Math.round(totalCurrent).toLocaleString('en-IN')} with net P&L of ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%. ${winners.length} winning positions, ${losers.length} losing positions across ${holdings.length} holdings.`,
+    overallAssessment: `Portfolio valuation: ₹${Math.round(totalCurrent).toLocaleString('en-IN')} with net P&L of ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%. ${winners.length} winning positions, ${losers.length} losing positions across ${holdings.length} holdings (${longTermHoldings.length} Core Long-Term, ${swingHoldings.length} Tactical Swing).`,
     sectorConcentration,
     sectorAllocation,
     profitBookingActions: profitBooking,
     lossCuttingActions: lossCutting,
+    dipAccumulationActions: dipAccumulation,
+    thesisReviewActions: thesisReview,
     rebalanceActions: rebalance,
     suggestedNewStocks,
-    overallStrategy: `Maintain asymmetric risk/reward: Cut any holding that hits -5.5% to -6% without hesitation. On winners above +7%, sell 50% shares to lock in gains and ratchet stop on remainder to breakeven. Cap single-stock exposure at 20% of total capital.`,
+    overallStrategy: `Core & Satellite Discipline: For Long-Term Core compounders, hold through noise and accumulate on cyclical dips (-10% to -20%) if fundamental earnings remain intact. For Tactical Swing trades, cut any trade that breaches -5.5% without hesitation, and bank 50% profits at +8% (Target 1).`,
     riskWarnings: [
       `Overall portfolio P&L: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`,
-      pnlPct < -5 ? 'Drawdown alert: Multiple positions are in drawdown. Halt new buys until market regime stabilizes.' : 'Capital preservation rules active: stops strictly enforced.',
+      lossCutting.length > 0 ? `Swing Risk Alert: ${lossCutting.length} active swing trades have violated the -5.5% stop loss limit.` : 'Swing risk controls intact.',
+      dipAccumulation.length > 0 ? `Core Opportunity: ${dipAccumulation.length} long-term holdings are in the value accumulation dip zone.` : 'Core holdings steady.',
       topSector && topSector.percentage >= 35 ? `Concentration alert: ${topSector.sector} sector is ${topSector.percentage}% of your capital.` : 'Sector spread is within standard guidelines.'
     ]
   };

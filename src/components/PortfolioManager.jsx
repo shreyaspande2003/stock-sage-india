@@ -5,11 +5,11 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#14b8a6', '#f97316'];
 
 const SAMPLE_HOLDINGS = [
-  { symbol: 'RELIANCE', quantity: 10, buyPrice: 2850, buyDate: '2024-03-01' },
-  { symbol: 'TCS', quantity: 6, buyPrice: 3820, buyDate: '2024-04-15' },
-  { symbol: 'INFY', quantity: 15, buyPrice: 1460, buyDate: '2024-05-10' },
-  { symbol: 'BHARTIARTL', quantity: 12, buyPrice: 1580, buyDate: '2024-06-20' },
-  { symbol: 'HDFCBANK', quantity: 8, buyPrice: 1640, buyDate: '2024-02-15' },
+  { symbol: 'RELIANCE', quantity: 10, buyPrice: 2850, buyDate: '2024-03-01', strategy: 'LONG_TERM' },
+  { symbol: 'TCS', quantity: 6, buyPrice: 3820, buyDate: '2024-04-15', strategy: 'LONG_TERM' },
+  { symbol: 'INFY', quantity: 15, buyPrice: 1460, buyDate: '2024-05-10', strategy: 'LONG_TERM' },
+  { symbol: 'HDFCBANK', quantity: 8, buyPrice: 1640, buyDate: '2024-02-15', strategy: 'LONG_TERM' },
+  { symbol: 'BHARTIARTL', quantity: 12, buyPrice: 1580, buyDate: '2024-06-20', strategy: 'SWING' },
 ];
 
 const QUICK_SYMBOLS = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'BHARTIARTL', 'LT', 'ICICIBANK', 'SUNPHARMA', 'TATAMOTORS'];
@@ -29,6 +29,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
   const [manualQty, setManualQty] = useState('');
   const [manualBuyPrice, setManualBuyPrice] = useState('');
   const [manualBuyDate, setManualBuyDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [manualStrategy, setManualStrategy] = useState('LONG_TERM'); // 'LONG_TERM' | 'SWING'
 
   const fileRef = useRef(null);
 
@@ -67,6 +68,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
         quantity: Number(h.quantity),
         buyPrice: Number(h.buyPrice),
         buyDate: h.buyDate || new Date().toISOString().split('T')[0],
+        strategy: h.strategy || 'LONG_TERM',
       }));
       localStorage.setItem('stocksage_active_portfolio', JSON.stringify(minimal));
     } catch (err) {
@@ -109,6 +111,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
         quantity: newTotalQty,
         buyPrice: Math.round(weightedAvgPrice * 100) / 100,
         buyDate: manualBuyDate || existing.buyDate,
+        strategy: manualStrategy,
       };
     } else {
       updated = [
@@ -118,6 +121,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
           quantity: qty,
           buyPrice: price,
           buyDate: manualBuyDate,
+          strategy: manualStrategy,
         }
       ];
     }
@@ -128,6 +132,18 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
     setManualBuyPrice('');
     setError('');
 
+    syncHoldings(updated);
+  };
+
+  const handleToggleStrategy = (symbol) => {
+    if (!portfolio?.holdings) return;
+    const updated = portfolio.holdings.map(h => {
+      if (h.symbol === symbol) {
+        const next = (h.strategy || 'LONG_TERM').toUpperCase() === 'SWING' ? 'LONG_TERM' : 'SWING';
+        return { ...h, strategy: next };
+      }
+      return h;
+    });
     syncHoldings(updated);
   };
 
@@ -164,6 +180,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
           quantity: h.quantity,
           buyPrice: h.buyPrice,
           buyDate: h.buyDate || '',
+          strategy: h.strategy || 'LONG_TERM',
         }));
         localStorage.setItem('stocksage_active_portfolio', JSON.stringify(minimal));
       }
@@ -214,19 +231,24 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
     return `₹${Number(price).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
   };
 
+  const coreCount = portfolio?.holdings?.filter(h => (h.strategy || 'LONG_TERM').toUpperCase() !== 'SWING').length || 0;
+  const swingCount = portfolio?.holdings?.filter(h => (h.strategy || 'LONG_TERM').toUpperCase() === 'SWING').length || 0;
+
   return (
     <div className="fade-in-up" style={{ paddingBottom: '3rem' }}>
       {/* Header */}
       <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1>💼 Institutional Portfolio Desk</h1>
-          <p>Track your real holdings with live NSE quotes, sector concentration defense, and quant trade management.</p>
+          <h1>💼 Dual-Engine Portfolio Desk</h1>
+          <p>
+            <strong>Core & Satellite Model:</strong> Long-term wealth compounders (with value dip accumulation) + high-velocity tactical swing trades (with hard -5.5% stops).
+          </p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <button
             className="btn btn-secondary btn-sm"
             onClick={handleLoadDemo}
-            title="Pre-fills a 5-stock Indian bluechip portfolio to immediately test the system"
+            title="Pre-fills a Core + Satellite Indian portfolio"
           >
             ⚡ Load Demo Portfolio
           </button>
@@ -271,7 +293,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
 
         {activeTab === 'manual' ? (
           <div>
-            <form onSubmit={handleManualAdd} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr)) 120px', gap: '0.75rem', alignItems: 'end' }}>
+            <form onSubmit={handleManualAdd} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr)) 110px', gap: '0.75rem', alignItems: 'end' }}>
               <div>
                 <label className="text-xs text-muted" style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>STOCK SYMBOL</label>
                 <input
@@ -289,6 +311,26 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
                     fontWeight: 700,
                   }}
                 />
+              </div>
+
+              <div>
+                <label className="text-xs text-muted" style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>PORTFOLIO ROLE</label>
+                <select
+                  value={manualStrategy}
+                  onChange={(e) => setManualStrategy(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.75rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-secondary)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: manualStrategy === 'LONG_TERM' ? 'var(--accent-cyan)' : 'var(--accent-primary)',
+                    fontWeight: 700,
+                  }}
+                >
+                  <option value="LONG_TERM">💎 Core Long-Term</option>
+                  <option value="SWING">⚡ Tactical Swing</option>
+                </select>
               </div>
 
               <div>
@@ -403,7 +445,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
                   <div className="portfolio-upload-icon" style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📄</div>
                   <h3 style={{ fontSize: '1.1rem' }}>Drop your Zerodha / Groww / AngelOne CSV here</h3>
                   <p className="text-muted text-sm" style={{ marginTop: '0.25rem' }}>
-                    or click to browse. Recognizes standard headers: <code>Symbol, Quantity, BuyPrice, BuyDate</code>
+                    or click to browse. Recognizes standard headers: <code>Symbol, Quantity, BuyPrice, BuyDate, Strategy</code>
                   </p>
                 </>
               )}
@@ -433,7 +475,9 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
             <div className="portfolio-stat-card">
               <div className="portfolio-stat-label">Total Capital Invested</div>
               <div className="portfolio-stat-value">{formatPrice(portfolio.summary.totalInvested)}</div>
-              <div className="text-xs text-muted" style={{ marginTop: '0.25rem' }}>Across {portfolio.summary.totalHoldings} positions</div>
+              <div className="text-xs text-muted" style={{ marginTop: '0.25rem' }}>
+                {coreCount} Core Holdings • {swingCount} Swing Trades
+              </div>
             </div>
 
             <div className="portfolio-stat-card">
@@ -451,7 +495,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
                 </span>
               </div>
               <div className="text-xs text-muted" style={{ marginTop: '0.25rem' }}>
-                {portfolio.summary.totalPnl >= 0 ? '🟢 Profit zone' : '🔴 Capital defense required'}
+                {portfolio.summary.totalPnl >= 0 ? '🟢 Profit zone' : '🔴 Capital defense active'}
               </div>
             </div>
 
@@ -473,10 +517,10 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                 <span style={{ fontSize: '1.25rem' }}>⚡</span>
-                <h3 style={{ margin: 0 }}>Institutional Portfolio Strategy & Rebalancing Desk</h3>
+                <h3 style={{ margin: 0 }}>Core vs Satellite Institutional Desk</h3>
               </div>
               <p className="text-muted text-sm" style={{ margin: 0 }}>
-                Synthesizes sector concentration risk, target price profit booking, stop loss cuts, and capital reallocation.
+                Synthesizes value accumulation on long-term bluechips while enforcing hard -5.5% stops on short-term swing trades.
               </p>
             </div>
             <button
@@ -559,7 +603,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
                 </div>
               )}
 
-              {/* Action Hub (Profit Booking, Loss Cutting, Rebalancing) */}
+              {/* Action Hub (Profit Booking, Loss Cutting, Dip Accumulation, Rebalancing) */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
                 {/* Profit Booking */}
                 <div style={{ background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
@@ -570,58 +614,54 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
                     portfolioAI.analysis.profitBookingActions.map((a, i) => (
                       <div key={i} style={{ marginBottom: '0.6rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '0.82rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: '0.2rem' }}>
-                          <span style={{ color: 'var(--text-primary)' }}>{a.symbol}</span>
+                          <span style={{ color: 'var(--text-primary)' }}>{a.symbol} ({a.strategy === 'SWING' ? '⚡ Swing' : '💎 Core'})</span>
                           <span style={{ color: 'var(--color-buy)' }}>{a.action}</span>
                         </div>
                         <div className="text-muted" style={{ lineHeight: 1.4 }}>{a.reasoning}</div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-xs text-muted">No positions currently at profit target (+7% or higher). Let winners develop.</p>
+                    <p className="text-xs text-muted">No positions currently at profit target. Let winners develop.</p>
                   )}
                 </div>
 
-                {/* Loss Cutting Defense */}
+                {/* Tactical Swing Stop Losses (Only applies to SWING) */}
                 <div style={{ background: 'rgba(239, 68, 68, 0.04)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
                   <h4 style={{ fontSize: '0.9rem', color: 'var(--color-sell)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <span>✂️</span> Loss-Cutting Stops
+                    <span>🛑</span> Swing Trade Stops (Exit at -5.5%)
                   </h4>
                   {portfolioAI.analysis.lossCuttingActions?.length > 0 ? (
                     portfolioAI.analysis.lossCuttingActions.map((a, i) => (
                       <div key={i} style={{ marginBottom: '0.6rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '0.82rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: '0.2rem' }}>
-                          <span style={{ color: 'var(--text-primary)' }}>{a.symbol}</span>
+                          <span style={{ color: 'var(--text-primary)' }}>{a.symbol} (⚡ Swing)</span>
                           <span style={{ color: 'var(--color-sell)' }}>{a.action}</span>
                         </div>
                         <div className="text-muted" style={{ lineHeight: 1.4 }}>{a.reasoning}</div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-xs text-muted">Zero holdings have breached the -5.5% hard stop loss. Capital defense intact.</p>
+                    <p className="text-xs text-muted">Zero active swing trades have breached the -5.5% hard stop loss limit.</p>
                   )}
                 </div>
 
-                {/* Rebalancing Strategy */}
-                <div style={{ background: 'rgba(56, 189, 248, 0.04)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
+                {/* Core Dip Accumulation (Strategic Averaging for Long-Term) */}
+                <div style={{ background: 'rgba(34, 211, 238, 0.04)', border: '1px solid rgba(34, 211, 238, 0.25)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
                   <h4 style={{ fontSize: '0.9rem', color: 'var(--accent-cyan)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <span>⚖️</span> Allocation Discipline
+                    <span>🛒</span> Core Dip Accumulation Zone
                   </h4>
-                  {portfolioAI.analysis.rebalanceActions?.length > 0 ? (
-                    portfolioAI.analysis.rebalanceActions.slice(0, 4).map((a, i) => (
+                  {portfolioAI.analysis.dipAccumulationActions?.length > 0 ? (
+                    portfolioAI.analysis.dipAccumulationActions.map((a, i) => (
                       <div key={i} style={{ marginBottom: '0.6rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '0.82rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: '0.2rem' }}>
-                          <span style={{ color: 'var(--text-primary)' }}>{a.symbol}</span>
-                          <span style={{
-                            color: a.direction === 'DECREASE' ? 'var(--color-sell)' : a.direction === 'EXIT' ? 'var(--color-sell)' : 'var(--accent-cyan)'
-                          }}>
-                            {a.direction} ({a.targetAllocation})
-                          </span>
+                          <span style={{ color: 'var(--text-primary)' }}>{a.symbol} (💎 Core)</span>
+                          <span style={{ color: 'var(--accent-cyan)' }}>{a.action}</span>
                         </div>
                         <div className="text-muted" style={{ lineHeight: 1.4 }}>{a.reasoning}</div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-xs text-muted">All allocations are balanced within institutional single-stock risk caps.</p>
+                    <p className="text-xs text-muted">Core compounders are steady. No major cyclical discount zones active right now.</p>
                   )}
                 </div>
               </div>
@@ -664,7 +704,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
             <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ margin: 0 }}>📋 Current Holdings & Real-Time Trade Desk</h3>
-                <span className="text-xs text-muted">Live MTM, stop loss levels, and quantitative action triggers</span>
+                <span className="text-xs text-muted">Click the strategy tag (💎 CORE / ⚡ SWING) to toggle between Long-Term and Swing mode</span>
               </div>
               <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-primary)', fontWeight: 600 }}>
                 {portfolio.holdings.length} Positions Active
@@ -675,12 +715,12 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
               <table className="portfolio-table" style={{ margin: 0 }}>
                 <thead>
                   <tr>
-                    <th>Stock / Sector</th>
+                    <th>Stock / Role</th>
                     <th>Qty</th>
                     <th>Avg Buy Price</th>
                     <th>Current Price</th>
-                    <th>Target (T1)</th>
-                    <th>Stop Loss</th>
+                    <th>Target</th>
+                    <th>Stop / Review</th>
                     <th>Invested</th>
                     <th>Valuation</th>
                     <th>P&L</th>
@@ -691,25 +731,45 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
                 </thead>
                 <tbody>
                   {portfolio.holdings.map((h, i) => {
+                    const isSwing = (h.strategy || 'LONG_TERM').toUpperCase() === 'SWING';
                     const badge = h.quantAction || {
-                      badge: 'HOLD_IN_BASE',
-                      label: 'HOLD BASE',
+                      badge: isSwing ? 'HOLD_IN_BASE' : 'CORE_HOLD',
+                      label: isSwing ? 'HOLD BASE ⏳' : 'CORE HOLD 💎',
                       variant: 'cyan',
                       detail: 'Position within normal noise tolerance.',
                     };
 
-                    const badgeStyle = badge.badge === 'RIDE_RUNNER'
+                    const badgeStyle = (badge.badge === 'RIDE_RUNNER' || badge.badge === 'CORE_COMPOUNDER')
                       ? { background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.4)' }
-                      : badge.badge === 'BANK_PROFIT_T1'
+                      : (badge.badge === 'BANK_PROFIT_T1' || badge.badge === 'ACCUMULATE_DIP')
                       ? { background: 'rgba(52, 211, 153, 0.15)', color: '#34d399', border: '1px solid rgba(52, 211, 153, 0.4)' }
-                      : badge.badge === 'CUT_LOSS'
+                      : (badge.badge === 'CUT_LOSS' || badge.badge === 'REVIEW_THESIS')
                       ? { background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)' }
                       : { background: 'rgba(56, 189, 248, 0.12)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' };
 
                     return (
                       <tr key={i}>
                         <td>
-                          <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{h.symbol}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{h.symbol}</div>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStrategy(h.symbol)}
+                              title="Click to toggle between Core Long-Term and Tactical Swing"
+                              style={{
+                                background: isSwing ? 'rgba(99, 102, 241, 0.18)' : 'rgba(34, 211, 238, 0.15)',
+                                color: isSwing ? 'var(--accent-primary)' : 'var(--accent-cyan)',
+                                border: `1px solid ${isSwing ? 'var(--accent-primary)' : 'var(--accent-cyan)'}`,
+                                borderRadius: '4px',
+                                padding: '1px 6px',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {isSwing ? '⚡ SWING' : '💎 CORE'}
+                            </button>
+                          </div>
                           <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginTop: '0.2rem' }}>
                             {h.sector && (
                               <span style={{ fontSize: '0.7rem', padding: '1px 6px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', color: 'var(--text-secondary)' }}>
@@ -740,10 +800,10 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
                           )}
                         </td>
                         <td style={{ color: 'var(--color-buy)', fontWeight: 600 }}>
-                          {formatPrice(h.targetPrice || h.buyPrice * 1.08)}
+                          {formatPrice(h.targetPrice || h.buyPrice * (isSwing ? 1.08 : 1.30))}
                         </td>
-                        <td style={{ color: 'var(--color-sell)', fontWeight: 600 }}>
-                          {formatPrice(h.stopLossPrice || h.buyPrice * 0.94)}
+                        <td style={{ color: isSwing ? 'var(--color-sell)' : 'var(--text-muted)', fontWeight: 600 }}>
+                          {formatPrice(h.stopLossPrice || h.buyPrice * (isSwing ? 0.94 : 0.80))}
                         </td>
                         <td>{formatPrice(h.investedValue)}</td>
                         <td style={{ fontWeight: 600 }}>{formatPrice(h.currentValue)}</td>
