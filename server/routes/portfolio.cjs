@@ -13,9 +13,136 @@ const XLSX = require('xlsx');
 const storage = multer.memoryStorage();
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
+// Static ISIN -> NSE Ticker Dictionary (covers user holdings and top Indian assets)
+const ISIN_TO_SYMBOL_MAP = {
+  // User's holdings from Groww statement
+  'INE618L01018': '5PAISA',
+  'INE117A01022': 'ABB',
+  'INE012A01025': 'ACC',
+  'INE793A01012': 'ACCELYA',
+  'INE062D01024': 'ALICON',
+  'INE1YPB01014': 'AGL',
+  'INE418H01029': 'ALLCARGO',
+  'INE263A01024': 'BEL',
+  'INE836A01035': 'BSOFT',
+  'INE0BV301023': 'MAPMYINDIA',
+  'INE522F01014': 'COALINDIA',
+  'INE111A01025': 'CONCOR',
+  'INE509F01029': 'CUPID',
+  'INE07O001026': 'EASEMYTRIP',
+  'INE131A01031': 'GMDCLTD',
+  'INE419U01012': 'HAPPSTMNDS',
+  'INE860A01027': 'HCLTECH',
+  'INE040A01034': 'HDFCBANK',
+  'INE549A01026': 'HCC',
+  'INF109KC1NT3': 'GOLDIETF',
+  'INF109KC1Y56': 'SILVERIETF',
+  'INE092T01019': 'IDFCFIRSTB',
+  'INE242A01010': 'IOC',
+  'INE095A01012': 'INDUSINDBK',
+  'INE154A01025': 'ITC',
+  'INE070D01027': 'JAICORPLTD',
+  'INE0BJO01010': 'JPL',
+  'INE121E01018': 'JSWENERGY',
+  'INE880J01026': 'JSWINFRA',
+  'INE599M01018': 'JUSTDIAL',
+  'INE619B01017': 'NEWGEN',
+  'INF732E01045': 'JUNIORBEES',
+  'INF204KB1V68': 'MID150BEES',
+  'INF204KB14I2': 'NIFTYBEES',
+  'INE584A01023': 'NMDC',
+  'INE0ONG01011': 'NTPCGREEN',
+  'INE733E01010': 'NTPC',
+  'INE877F01012': 'PTC',
+  'INE411H01032': 'RSYSTEMS',
+  'INE602W01027': 'SENCO',
+  'INE964H01014': 'SEPC',
+  'INE062A01020': 'SBIN',
+  'INE660A01013': 'SUNDARMFIN',
+  'INE040H01021': 'SUZLON',
+  'INE467B01029': 'TCS',
+  'INE142M01025': 'TATATECH',
+  'INE763I01026': 'TARIL',
+  'INE735W01017': 'UTKARSHBNK',
+  'INE200M01039': 'VBL',
+  'INE299N01021': 'WAAREERTL',
+
+  // Major benchmark Indian bluechips and ETFs
+  'INE002A01018': 'RELIANCE',
+  'INE009A01021': 'INFY',
+  'INE090A01021': 'ICICIBANK',
+  'INE018A01030': 'LT',
+  'INE155A01022': 'TATAMOTORS',
+  'INE044A01036': 'SUNPHARMA',
+  'INE397D01024': 'BHARTIARTL',
+  'INE030A01027': 'HINDUNILVR',
+  'INE238A01034': 'AXISBANK',
+  'INE237A01028': 'KOTAKBANK',
+  'INE081A01012': 'TATASTEEL',
+  'INE102D01028': 'TITAN',
+  'INE752E01010': 'POWERGRID',
+  'INE123W01016': 'PAYTM',
+  'INE758T01015': 'ZOMATO',
+  'INE009N01054': 'NYKAA',
+  'INE917I01012': 'CDSL',
+  'INE118H01025': 'ANGELONE',
+  'INE585B01010': 'MARUTI',
+  'INE245A01021': 'BAJFINANCE',
+  'INE918I01018': 'BAJAJFINSV',
+  'INE213A01029': 'ONGC',
+  'INE021A01026': 'ASIANPAINT',
+  'INE047A01021': 'GRASIM',
+  'INE019A01038': 'JSWSTEEL',
+  'INE028A01039': 'BANKBARODA',
+  'INE084A01016': 'PNB',
+};
+
+// Additional metadata for stocks outside UNIVERSE_200 (prevents "N/A MID" in UI)
+const EXTENDED_METADATA = {
+  'TARIL': { name: 'Transformers and Rectifiers (India) Ltd', sector: 'Capital Goods / Power Infra', cap: 'SMALL_CAP' },
+  'SUNDARMFIN': { name: 'Sundaram Finance Ltd', sector: 'Financials / NBFC', cap: 'LARGE_CAP' },
+  'TATATECH': { name: 'Tata Technologies Ltd', sector: 'IT / ER&D Services', cap: 'MID_CAP' },
+  'WAAREERTL': { name: 'Waaree Renewable Tech Ltd', sector: 'Renewable Energy / Solar', cap: 'SMALL_CAP' },
+  'MAPMYINDIA': { name: 'C.E. Info Systems (MapMyIndia)', sector: 'IT / Digital Mapping', cap: 'SMALL_CAP' },
+  'BSOFT': { name: 'Birlasoft Ltd', sector: 'IT Services', cap: 'MID_CAP' },
+  'NMDC': { name: 'NMDC Ltd', sector: 'Mining / Metals', cap: 'LARGE_CAP' },
+  'JSWINFRA': { name: 'JSW Infrastructure Ltd', sector: 'Infrastructure / Ports', cap: 'LARGE_CAP' },
+  'UTKARSHBNK': { name: 'Utkarsh Small Finance Bank', sector: 'Banking / Small Finance', cap: 'SMALL_CAP' },
+  'SENCO': { name: 'Senco Gold Ltd', sector: 'Consumer / Jewellery', cap: 'SMALL_CAP' },
+  'SEPC': { name: 'SEPC Ltd', sector: 'Engineering / EPC', cap: 'SMALL_CAP' },
+  'PTC': { name: 'PTC India Ltd', sector: 'Power Trading / Infra', cap: 'SMALL_CAP' },
+  'RSYSTEMS': { name: 'R Systems International', sector: 'IT Services', cap: 'SMALL_CAP' },
+  'HAPPSTMNDS': { name: 'Happiest Minds Technologies', sector: 'IT Services', cap: 'SMALL_CAP' },
+  'NEWGEN': { name: 'Newgen Software Technologies', sector: 'IT / Enterprise Software', cap: 'SMALL_CAP' },
+  'NTPCGREEN': { name: 'NTPC Green Energy Ltd', sector: 'Renewable Energy', cap: 'LARGE_CAP' },
+  'NIFTYBEES': { name: 'Nippon India Nifty 50 BeES', sector: 'Index ETF', cap: 'LARGE_CAP' },
+  'JUNIORBEES': { name: 'Nippon India Nifty Next 50 BeES', sector: 'Index ETF', cap: 'LARGE_CAP' },
+  'MID150BEES': { name: 'Nippon India Midcap 150 ETF', sector: 'Index ETF', cap: 'MID_CAP' },
+  'GOLDIETF': { name: 'ICICI Prudential Gold ETF', sector: 'Commodity ETF', cap: 'LARGE_CAP' },
+  'SILVERIETF': { name: 'ICICI Prudential Silver ETF', sector: 'Commodity ETF', cap: 'LARGE_CAP' },
+  '5PAISA': { name: '5Paisa Capital Ltd', sector: 'Fintech / Broking', cap: 'SMALL_CAP' },
+  'ACCELYA': { name: 'Accelya Solutions India Ltd', sector: 'IT / Aviation Tech', cap: 'SMALL_CAP' },
+  'ALICON': { name: 'Alicon Castalloy Ltd', sector: 'Auto Ancillary', cap: 'SMALL_CAP' },
+  'AGL': { name: 'Allcargo Gati Ltd', sector: 'Logistics', cap: 'SMALL_CAP' },
+  'ALLCARGO': { name: 'Allcargo Logistics Ltd', sector: 'Logistics', cap: 'SMALL_CAP' },
+  'CUPID': { name: 'Cupid Ltd', sector: 'Healthcare / Wellness', cap: 'SMALL_CAP' },
+  'EASEMYTRIP': { name: 'Easy Trip Planners Ltd', sector: 'Consumer / Online Travel', cap: 'SMALL_CAP' },
+  'GMDCLTD': { name: 'Gujarat Mineral Dev Corp', sector: 'Mining / Minerals', cap: 'MID_CAP' },
+  'HCC': { name: 'Hindustan Construction Co', sector: 'Infrastructure / Construction', cap: 'SMALL_CAP' },
+  'JAICORPLTD': { name: 'Jai Corp Ltd', sector: 'Infrastructure / Plastics', cap: 'SMALL_CAP' },
+  'JPL': { name: 'Jio Platforms Ltd', sector: 'Telecom / Tech', cap: 'LARGE_CAP' },
+  'JUSTDIAL': { name: 'Just Dial Ltd', sector: 'Internet / Local Search', cap: 'MID_CAP' },
+  'IOC': { name: 'Indian Oil Corporation', sector: 'Oil & Gas', cap: 'LARGE_CAP' },
+  'INDUSINDBK': { name: 'IndusInd Bank Ltd', sector: 'Banking', cap: 'LARGE_CAP' },
+  'IDFCFIRSTB': { name: 'IDFC First Bank Ltd', sector: 'Banking', cap: 'MID_CAP' },
+  'ACC': { name: 'ACC Limited', sector: 'Cement / Building Materials', cap: 'LARGE_CAP' },
+  'CONCOR': { name: 'Container Corp of India', sector: 'Logistics / Rail', cap: 'LARGE_CAP' },
+};
+
 // Build quick lookup map for symbols to sectors and company names
 const SECTOR_MAP = {};
 const NAME_TO_SYMBOL_MAP = {};
+
 UNIVERSE_200.forEach(item => {
   const sym = item.symbol.toUpperCase();
   SECTOR_MAP[sym] = { sector: item.sector, name: item.name, cap: item.cap };
@@ -24,25 +151,91 @@ UNIVERSE_200.forEach(item => {
   NAME_TO_SYMBOL_MAP[sym.toLowerCase()] = sym;
 });
 
-// Resolve symbol from raw text, stock name, or company name
-function resolveSymbol(raw) {
-  if (!raw) return '';
-  let str = String(raw).trim().toUpperCase();
+// Merge extended metadata
+Object.entries(EXTENDED_METADATA).forEach(([sym, meta]) => {
+  SECTOR_MAP[sym] = meta;
+  const cleanName = meta.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  NAME_TO_SYMBOL_MAP[cleanName] = sym;
+  NAME_TO_SYMBOL_MAP[sym.toLowerCase()] = sym;
+});
+
+// Resolve symbol from raw text, stock name, company name, or ISIN
+function resolveSymbol(rawName, rawIsin) {
+  // 1. ISIN check has absolute priority (unique 12-char global identifier)
+  if (rawIsin) {
+    const isinClean = String(rawIsin).trim().toUpperCase();
+    if (ISIN_TO_SYMBOL_MAP[isinClean]) {
+      return ISIN_TO_SYMBOL_MAP[isinClean];
+    }
+  }
+
+  if (!rawName) return '';
+  let str = String(rawName).trim().toUpperCase();
+
+  // Strip exchange extensions and trade series
   str = str.replace(/-EQ$/i, '').replace(/\.NS$/i, '').replace(/\.BO$/i, '').replace(/\s+EQ$/i, '').trim();
 
+  // If already a valid known ticker
   if (SECTOR_MAP[str]) return str;
 
-  const clean = str.toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (NAME_TO_SYMBOL_MAP[clean]) return NAME_TO_SYMBOL_MAP[clean];
+  // Exact broker patterns for ETFs & Indian conglomerates
+  if (str.includes('JUNIOR') && str.includes('BEES')) return 'JUNIORBEES';
+  if (str.includes('NIFTY') && str.includes('BEES')) return 'NIFTYBEES';
+  if (str.includes('MIDCAP') && str.includes('150')) return 'MID150BEES';
+  if (str.includes('GOLD') && str.includes('ETF')) return 'GOLDIETF';
+  if (str.includes('SILVER')) return 'SILVERIETF';
+  if (str.includes('TATA TECHNOLOGIES')) return 'TATATECH';
+  if (str.includes('TATA CONSULTANCY') || str.includes('TCS')) return 'TCS';
+  if (str.includes('SUNDARAM FINANCE')) return 'SUNDARMFIN';
+  if (str.includes('TRANS') && str.includes('RECTI')) return 'TARIL';
+  if (str.includes('WAAREE') && str.includes('RENEW')) return 'WAAREERTL';
+  if (str.includes('UTKARSH') && str.includes('BANK')) return 'UTKARSHBNK';
+  if (str.includes('C.E. INFO') || str.includes('MAPMYINDIA')) return 'MAPMYINDIA';
+  if (str.includes('STATE BANK OF INDIA')) return 'SBIN';
+  if (str.includes('BHARAT ELECTRONICS')) return 'BEL';
+  if (str.includes('CONTAINER CORP')) return 'CONCOR';
+  if (str.includes('COAL INDIA')) return 'COALINDIA';
+  if (str.includes('HCL TECH')) return 'HCLTECH';
+  if (str.includes('HAPPIEST MINDS')) return 'HAPPSTMNDS';
+  if (str.includes('EASY TRIP')) return 'EASEMYTRIP';
+  if (str.includes('JSW INFRA')) return 'JSWINFRA';
+  if (str.includes('JSW ENERGY')) return 'JSWENERGY';
+  if (str.includes('NEWGEN')) return 'NEWGEN';
+  if (str.includes('NTPC GREEN')) return 'NTPCGREEN';
+  if (str.includes('R SYS')) return 'RSYSTEMS';
+  if (str.includes('SEPC')) return 'SEPC';
+  if (str.includes('SENCO')) return 'SENCO';
+  if (str.includes('VARUN BEVERAGES')) return 'VBL';
+  if (str.includes('SUZLON')) return 'SUZLON';
+  if (str.includes('ACCELYA')) return 'ACCELYA';
+  if (str.includes('ALICON')) return 'ALICON';
+  if (str.includes('BIRLASOFT')) return 'BSOFT';
+  if (str.includes('5PAISA')) return '5PAISA';
+  if (str.includes('GUJARAT MINERAL') || str.includes('GMDC')) return 'GMDCLTD';
+  if (str.includes('HINDUSTAN CONSTRUCTION') || str === 'HCC') return 'HCC';
+  if (str.includes('JAI CORP')) return 'JAICORPLTD';
+  if (str.includes('JIO PLATFORMS')) return 'JPL';
+  if (str.includes('JUST DIAL') || str.includes('JUSTDIAL')) return 'JUSTDIAL';
 
+  // Strip corporate suffix words before string matching
+  // (CRUCIAL: Prevents "LTD" from mistakenly matching "LT"!)
+  const strippedStr = str
+    .replace(/\b(LIMITED|LTD\.?|PVT\.?|PRIVATE|CORP\.?|CORPORATION|HOLDINGS|HOLDING|SOLUTIONS|SOLN\.?|SERVICES|SERV\.?|TECHNOLOGIES|TECHNO|TECH|CO\.?|IND\.?|INDIA)\b/gi, '')
+    .trim();
+
+  const clean = strippedStr.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (clean && NAME_TO_SYMBOL_MAP[clean]) return NAME_TO_SYMBOL_MAP[clean];
+
+  // Only allow substring matching if both search key AND target clean name are >= 5 chars
+  // NEVER allow 2-character keys like "lt" to match!
   for (const [k, sym] of Object.entries(NAME_TO_SYMBOL_MAP)) {
-    if (clean.length >= 4 && (clean.includes(k) || k.includes(clean))) {
+    if (k.length >= 5 && clean.length >= 5 && (clean.includes(k) || k.includes(clean))) {
       return sym;
     }
   }
 
   // Fallback: extract first clean word token if alphanumeric
-  const firstToken = str.split(/[\s,]+/)[0];
+  const firstToken = strippedStr.split(/[\s,]+/)[0];
   if (firstToken && firstToken.length >= 2 && firstToken.length <= 15 && /^[A-Z0-9&-]+$/.test(firstToken)) {
     return firstToken;
   }
@@ -295,7 +488,8 @@ router.post('/upload', upload.single('portfolio'), async (req, res) => {
 
     const holdings = records.map(row => {
       const rawSym = row[columnMap.symbol] || '';
-      const resolved = resolveSymbol(rawSym);
+      const rawIsin = columnMap.isin ? (row[columnMap.isin] || '') : '';
+      const resolved = resolveSymbol(rawSym, rawIsin);
       const rawQty = String(row[columnMap.quantity] || '0').replace(/,/g, '').trim();
       const rawPrice = String(row[columnMap.buyPrice] || '0').replace(/,/g, '').trim();
       return {
@@ -319,6 +513,66 @@ router.post('/upload', upload.single('portfolio'), async (req, res) => {
   } catch (err) {
     console.error('[Portfolio] Upload error:', err.message);
     res.status(500).json({ error: 'Failed to parse portfolio file: ' + err.message });
+  }
+});
+
+// Auto-load statement from Downloads folder (one-click restore)
+router.all('/load-groww-file', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+    const downloadsDir = path.join(os.homedir(), 'Downloads');
+
+    let targetFile = null;
+    if (fs.existsSync(downloadsDir)) {
+      const files = fs.readdirSync(downloadsDir)
+        .filter(f => f.startsWith('Stocks_Holdings_Statement') && (f.endsWith('.xlsx') || f.endsWith('.csv')))
+        .sort()
+        .reverse();
+      if (files.length > 0) {
+        targetFile = path.join(downloadsDir, files[0]);
+      }
+    }
+
+    if (!targetFile || !fs.existsSync(targetFile)) {
+      return res.status(404).json({ error: 'No Groww holdings statement found in Downloads folder.' });
+    }
+
+    const fileBuffer = fs.readFileSync(targetFile);
+    let records = [];
+    let columnMap = {};
+
+    if (targetFile.endsWith('.xlsx') || targetFile.endsWith('.xls')) {
+      const parsedExcel = extractRecordsFromExcel(fileBuffer);
+      records = parsedExcel.records;
+      columnMap = parsedExcel.columnMap;
+    } else {
+      const csvContent = fileBuffer.toString('utf-8');
+      records = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true });
+      if (records.length > 0) columnMap = detectColumns(Object.keys(records[0]));
+    }
+
+    const holdings = records.map(row => {
+      const rawSym = row[columnMap.symbol] || '';
+      const rawIsin = columnMap.isin ? (row[columnMap.isin] || '') : '';
+      const resolved = resolveSymbol(rawSym, rawIsin);
+      const rawQty = String(row[columnMap.quantity] || '0').replace(/,/g, '').trim();
+      const rawPrice = String(row[columnMap.buyPrice] || '0').replace(/,/g, '').trim();
+      return {
+        symbol: (resolved || rawSym).toUpperCase().trim(),
+        quantity: parseFloat(rawQty) || 0,
+        buyPrice: parseFloat(rawPrice) || 0,
+        buyDate: row[columnMap.buyDate] || new Date().toISOString().split('T')[0],
+        strategy: 'LONG_TERM',
+      };
+    }).filter(h => h.symbol && h.quantity > 0);
+
+    const result = await processEnrichedPortfolio(holdings);
+    res.json({ ...result, filename: path.basename(targetFile) });
+  } catch (err) {
+    console.error('[Portfolio] Auto-load error:', err.message);
+    res.status(500).json({ error: 'Failed to auto-load Groww statement: ' + err.message });
   }
 });
 
@@ -670,7 +924,7 @@ Be specific with prices and quantities. Think like a profitable trader helping a
   }
 });
 
-// Detect column names from CSV headers (flexible)
+// Detect column names from CSV / Excel headers (flexible)
 function detectColumns(headers) {
   const lower = headers.map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
   
@@ -679,13 +933,14 @@ function detectColumns(headers) {
       const idx = lower.findIndex(h => h.includes(c));
       if (idx !== -1) return headers[idx];
     }
-    return headers[0]; // fallback
+    return null;
   };
 
   return {
-    symbol: findCol(['symbol', 'ticker', 'scrip', 'stockname', 'stock', 'company', 'name']),
+    symbol: findCol(['stockname', 'symbol', 'ticker', 'scrip', 'company', 'stock', 'name']) || headers[0],
+    isin: findCol(['isin']),
     quantity: findCol(['quantity', 'qty', 'shares', 'units', 'count', 'available', 'holding']),
-    buyPrice: findCol(['buyprice', 'avgprice', 'averagebuyprice', 'avgcost', 'price', 'cost', 'avg', 'purchase']),
+    buyPrice: findCol(['averagebuyprice', 'avgprice', 'buyprice', 'avgcost', 'cost', 'avg', 'price', 'purchase']),
     buyDate: findCol(['buydate', 'purchasedate', 'date', 'bought']),
     strategy: findCol(['strategy', 'role', 'type', 'horizon', 'mode']),
   };

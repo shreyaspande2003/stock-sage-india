@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { uploadPortfolio, submitManualPortfolio, analyzeHolding, analyzePortfolio } from '../api.js';
+import { uploadPortfolio, loadGrowwStatement, submitManualPortfolio, analyzeHolding, analyzePortfolio } from '../api.js';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#14b8a6', '#f97316'];
@@ -33,13 +33,42 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
 
   const fileRef = useRef(null);
 
-  // Auto-load portfolio from localStorage on mount
+  const handleLoadGrowwStatement = async () => {
+    setLoading(true);
+    setError('');
+    setPortfolioAI(null);
+    try {
+      const data = await loadGrowwStatement();
+      setPortfolio(data);
+      if (data?.holdings?.length > 0) {
+        const minimal = data.holdings.map(h => ({
+          symbol: h.symbol,
+          quantity: h.quantity,
+          buyPrice: h.buyPrice,
+          buyDate: h.buyDate || '',
+          strategy: h.strategy || 'LONG_TERM',
+        }));
+        localStorage.setItem('stocksage_active_portfolio', JSON.stringify(minimal));
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to auto-load Groww holdings statement. Try uploading the file.');
+    }
+    setLoading(false);
+  };
+
+  // Auto-load portfolio from localStorage on mount (with auto-heal for old LT bug)
   useEffect(() => {
     const saved = localStorage.getItem('stocksage_active_portfolio');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          const ltCount = parsed.filter(h => h.symbol === 'LT').length;
+          // If 3 or more stocks were corrupted to LT by the old substring bug, auto-heal from Groww file
+          if (ltCount >= 3) {
+            handleLoadGrowwStatement();
+            return;
+          }
           syncHoldings(parsed);
         }
       } catch (err) {
@@ -245,6 +274,15 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={handleLoadGrowwStatement}
+            disabled={loading}
+            title="Automatically loads all 47 holdings from your Groww statement file"
+            style={{ fontWeight: 700 }}
+          >
+            📥 {loading ? 'Loading...' : 'Load Groww Statement (47 Stocks)'}
+          </button>
           <button
             className="btn btn-secondary btn-sm"
             onClick={handleLoadDemo}

@@ -68,6 +68,7 @@ export const uploadPortfolio = (file) => {
   formData.append('portfolio', file);
   return apiFetch('/portfolio/upload', { method: 'POST', body: formData });
 };
+export const loadGrowwStatement = () => apiFetch('/portfolio/load-groww-file', { method: 'POST' });
 export const submitManualPortfolio = (holdings) => apiFetch('/portfolio/manual', { method: 'POST', body: { holdings } });
 export const analyzeHolding = (symbol, quantity, buyPrice) => apiFetch('/portfolio/analyze-holding', { method: 'POST', body: { symbol, quantity, buyPrice } });
 export const analyzePortfolio = (holdings) => apiFetch('/portfolio/analyze-all', { method: 'POST', body: { holdings } });
