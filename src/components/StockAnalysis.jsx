@@ -53,11 +53,11 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
         if (!isMounted) return;
 
         chart = lwc.createChart(chartRef.current, {
-          layout: { background: { color: 'transparent' }, textColor: '#94a3b8', fontSize: 12, fontFamily: 'Inter' },
-          grid: { vertLines: { color: 'rgba(99, 102, 241, 0.06)' }, horzLines: { color: 'rgba(99, 102, 241, 0.06)' } },
-          crosshair: { mode: 0, vertLine: { color: 'rgba(99, 102, 241, 0.4)', width: 1, style: 2 }, horzLine: { color: 'rgba(99, 102, 241, 0.4)', width: 1, style: 2 } },
-          rightPriceScale: { borderColor: 'rgba(99, 102, 241, 0.15)' },
-          timeScale: { borderColor: 'rgba(99, 102, 241, 0.15)', timeVisible: false },
+          layout: { background: { color: 'transparent' }, textColor: '#9ca3af', fontSize: 12, fontFamily: "'Plus Jakarta Sans', sans-serif" },
+          grid: { vertLines: { color: 'rgba(255, 255, 255, 0.03)' }, horzLines: { color: 'rgba(255, 255, 255, 0.03)' } },
+          crosshair: { mode: 0, vertLine: { color: 'rgba(6, 182, 212, 0.5)', width: 1, style: 2 }, horzLine: { color: 'rgba(6, 182, 212, 0.5)', width: 1, style: 2 } },
+          rightPriceScale: { borderColor: 'rgba(255, 255, 255, 0.08)' },
+          timeScale: { borderColor: 'rgba(255, 255, 255, 0.08)', timeVisible: false },
           width: chartRef.current.clientWidth,
           height: 380,
         });
