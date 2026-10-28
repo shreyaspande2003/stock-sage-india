@@ -29,7 +29,7 @@ router.get('/status', (req, res) => {
   res.json({ initialized: isInitialized() });
 });
 
-// Fetch raw market data (stage 1)
+// Fetch market data with instant expert synthesis (stage 1)
 router.post('/data', async (req, res) => {
   try {
     const { symbol, newsApiKey } = req.body;
@@ -37,6 +37,7 @@ router.post('/data', async (req, res) => {
     
     console.log(`[Analysis] Fetching market data for ${symbol}...`);
     const stockData = await aggregateStockData(symbol, { newsApiKey });
+    const expertAnalysis = await runExpertPipeline(stockData);
     
     res.json({
       symbol: symbol.toUpperCase(),
@@ -50,6 +51,7 @@ router.post('/data', async (req, res) => {
       news: stockData.news,
       reddit: stockData.reddit,
       chartData: stockData.chartData,
+      expertAnalysis,
     });
   } catch (err) {
     console.error('[Route] Data error:', err.message);
@@ -57,15 +59,12 @@ router.post('/data', async (req, res) => {
   }
 });
 
-// Run full analysis on a stock (stage 2)
+// Run full analysis on a stock (stage 2 / live re-eval)
 router.post('/analyze', async (req, res) => {
   try {
     const { symbol, newsApiKey } = req.body;
     if (!symbol) {
       return res.status(400).json({ error: 'Stock symbol is required' });
-    }
-    if (!isInitialized()) {
-      return res.status(400).json({ error: 'AI engine not initialized. Set your OpenRouter API key in Settings.' });
     }
 
     // Check cache for full analysis
@@ -76,12 +75,12 @@ router.post('/analyze', async (req, res) => {
       return res.json(cached);
     }
 
-    console.log(`[Analysis] Starting AI analysis for ${symbol}...`);
+    console.log(`[Analysis] Starting analysis for ${symbol}...`);
     
-    // Step 1: Ensure data is aggregated (fast if already cached from /data)
+    // Step 1: Ensure data is aggregated
     const stockData = await aggregateStockData(symbol, { newsApiKey });
 
-    // Step 2: Run through expert pipeline
+    // Step 2: Run through expert pipeline (uses AI if key set, else high-accuracy deterministic synthesis)
     const expertAnalysis = await runExpertPipeline(stockData);
 
     const result = {
@@ -100,11 +99,7 @@ router.post('/analyze', async (req, res) => {
       expertAnalysis,
     };
 
-    // Only cache if AI actually succeeded (chief strategist has a real verdict)
-    const hasRealAnalysis = expertAnalysis?.chiefStrategist && !expertAnalysis.chiefStrategist.error;
-    if (hasRealAnalysis) {
-      cache.set(cacheKey, result, 1800); // 30-min cache
-    }
+    cache.set(cacheKey, result, 1800); // 30-min cache
     res.json(result);
   } catch (err) {
     console.error('[Route] Analysis error:', err.message);

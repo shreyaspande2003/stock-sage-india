@@ -41,25 +41,18 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
   };
 
   const handleAnalyzeHolding = async (holding) => {
-    if (!isAIReady) {
-      setError('Please set your OpenRouter API key in Settings first.');
-      return;
-    }
     setAnalyzingSymbol(holding.symbol);
+    setError('');
     try {
       const data = await analyzeHolding(holding.symbol, holding.quantity, holding.buyPrice);
       onAnalyze(data);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Holding analysis failed');
     }
     setAnalyzingSymbol('');
   };
 
   const handleAnalyzeAll = async () => {
-    if (!isAIReady) {
-      setError('Please set your OpenRouter API key in Settings first.');
-      return;
-    }
     if (!portfolio?.holdings?.length) return;
     setAnalyzingPortfolio(true);
     setError('');

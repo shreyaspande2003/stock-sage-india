@@ -7,6 +7,19 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
   const [data, setData] = useState(initialData);
   const [aiLoading, setAiLoading] = useState(Boolean(!initialData.expertAnalysis && isAIReady));
   const [aiError, setAiError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefreshLive = async () => {
+    setRefreshing(true);
+    try {
+      const { fetchStockData } = await import('../api.js');
+      const freshData = await fetchStockData(data.symbol, settings.newsApiKey, { force: true });
+      setData(freshData);
+    } catch (e) {
+      console.error('Failed to refresh live data:', e);
+    }
+    setRefreshing(false);
+  };
 
   // Fetch AI analysis if it wasn't provided yet
   useEffect(() => {
@@ -244,7 +257,18 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
 
   return (
     <div className="fade-in-up" style={{ maxWidth: '1280px', margin: '0 auto' }}>
-      <button className="btn btn-ghost" onClick={onBack} style={{ marginBottom: '1rem' }}>← Back to Dashboard</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <button className="btn btn-ghost" onClick={onBack}>← Back to Dashboard</button>
+        <button
+          className="btn btn-secondary"
+          onClick={handleRefreshLive}
+          disabled={refreshing}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+        >
+          <span style={{ display: 'inline-block', transform: refreshing ? 'rotate(180deg)' : 'none', transition: 'transform 0.5s ease' }}>🔄</span>
+          {refreshing ? 'Refreshing Real-Time Data...' : 'Live Real-Time Refresh'}
+        </button>
+      </div>
 
       {/* ═══════ HERO: Stock Name + Price ═══════ */}
       <div style={{ marginBottom: '1.5rem', background: 'var(--bg-secondary)', padding: '2rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-primary)', position: 'relative', overflow: 'hidden' }}>

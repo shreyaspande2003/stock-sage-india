@@ -98,16 +98,17 @@ export default function Watchlist({ onAnalyze, settings, isAIReady, setIsAIReady
   };
 
   const handleAnalyze = async (symbol) => {
-    if (!isAIReady) {
-      if (settings.geminiKey) {
+    setAnalyzing(symbol);
+    setError('');
+    try {
+      if (settings.geminiKey && !isAIReady) {
         try {
           await initAI(settings.geminiKey, settings.useProModel);
           setIsAIReady(true);
-        } catch { setError('Failed to init AI. Check OpenRouter key in Settings.'); return; }
-      } else { setError('Set your OpenRouter API key in Settings first.'); return; }
-    }
-    setAnalyzing(symbol);
-    try {
+        } catch (e) {
+          console.warn('AI init notice:', e.message);
+        }
+      }
       const data = await analyzeStock(symbol, settings.newsApiKey);
       setAnalyzing('');
       onAnalyze(data);

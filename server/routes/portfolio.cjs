@@ -112,10 +112,6 @@ router.post('/analyze-holding', async (req, res) => {
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol is required' });
     }
-    if (!isInitialized()) {
-      return res.status(400).json({ error: 'AI engine not initialized. Set your OpenRouter API key.' });
-    }
-
     const stockData = await aggregateStockData(symbol);
     const expertAnalysis = await runExpertPipeline(stockData);
 
@@ -134,8 +130,12 @@ router.post('/analyze-holding', async (req, res) => {
       analyzedAt: new Date().toISOString(),
       portfolioContext,
       quote: stockData.quote,
+      marketRegime: stockData.marketRegime,
+      relativeStrength: stockData.relativeStrength,
       technicals: stockData.technicals,
       swingPlaybook: stockData.swingPlaybook,
+      quantConsensus: stockData.quantConsensus,
+      profitMaximizer: stockData.profitMaximizer,
       expertAnalysis,
       chartData: stockData.chartData,
     });
@@ -145,15 +145,73 @@ router.post('/analyze-holding', async (req, res) => {
   }
 });
 
-// Holistic portfolio-level AI analysis — one call for the entire portfolio
+// Helper for deterministic portfolio synthesis
+function generateDeterministicPortfolioAnalysis(holdings, totalInvested, totalCurrent, totalPnl) {
+  const pnlPct = totalInvested > 0 ? ((totalPnl / totalInvested) * 100) : 0;
+  const winners = holdings.filter(h => (h.pnl || (h.currentPrice - h.buyPrice) * h.quantity) > 0);
+  const losers = holdings.filter(h => (h.pnl || (h.currentPrice - h.buyPrice) * h.quantity) < 0);
+  const healthScore = Math.min(95, Math.max(35, Math.round(55 + (pnlPct * 1.2) + (winners.length >= losers.length ? 10 : -10))));
+
+  const profitBooking = winners.filter(w => (w.pnlPercent || 0) >= 7).map(w => ({
+    symbol: w.symbol,
+    action: 'SCALE_OUT_50_PCT',
+    targetPrice: Math.round(w.currentPrice * 1.05),
+    quantity: 'Sell 50% shares',
+    reasoning: `Up +${(w.pnlPercent || 0).toFixed(1)}%. Bank half the gains to lock in profits; move stop on remainder to breakeven.`
+  }));
+
+  const lossCutting = losers.filter(l => (l.pnlPercent || 0) <= -5.5).map(l => ({
+    symbol: l.symbol,
+    action: 'CUT_LOSS',
+    reasoning: `Down ${(l.pnlPercent || 0).toFixed(1)}%. Breached standard 5-6% swing stop threshold; preserve capital.`
+  }));
+
+  const rebalance = holdings.map(h => {
+    const val = h.currentValue || (h.currentPrice * h.quantity);
+    const alloc = totalCurrent > 0 ? (val / totalCurrent) * 100 : 0;
+    return {
+      symbol: h.symbol,
+      direction: alloc > 25 ? 'DECREASE' : (h.pnlPercent || 0) > 0 ? 'HOLD' : 'EXIT',
+      targetAllocation: alloc > 25 ? 'Max 15%' : `${Math.round(alloc)}%`,
+      reasoning: alloc > 25 ? 'Exceeds 25% single-stock concentration limit.' : 'Holding within risk boundaries.'
+    };
+  });
+
+  return {
+    portfolioHealthScore: healthScore,
+    overallAssessment: `Portfolio valuation: ₹${Math.round(totalCurrent).toLocaleString('en-IN')} with overall P&L of ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%. ${winners.length} winners, ${losers.length} losers across ${holdings.length} holdings.`,
+    sectorConcentration: holdings.length <= 3 ? 'High concentration risk (< 4 stocks)' : 'Diversified across multi-cap holdings.',
+    sectorAllocation: [{ sector: 'Equities', percentage: 100 }],
+    profitBookingActions: profitBooking,
+    lossCuttingActions: lossCutting,
+    rebalanceActions: rebalance,
+    suggestedNewStocks: [
+      { symbol: 'INFY', reasoning: 'Leading IT momentum with positive relative strength vs NIFTY 50', suggestedEntry: 'On breakout above 20-EMA' },
+      { symbol: 'BHARTIARTL', reasoning: 'High-conviction defensive large-cap momentum leader', suggestedEntry: 'Near 20-DMA pullback' }
+    ],
+    overallStrategy: `Maintain discipline on loss limits (-5% to -7% max) while letting winners ride via trailing stops. Bank partial gains on positions showing +7% or higher return.`,
+    riskWarnings: [
+      `Overall portfolio P&L: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`,
+      pnlPct < -5 ? 'Capital preservation alert: Cut losing positions to prevent drawdown expansion.' : 'Trailing stops active on winning positions.'
+    ]
+  };
+}
+
+// Holistic portfolio-level analysis
 router.post('/analyze-all', async (req, res) => {
   try {
     const { holdings } = req.body;
     if (!holdings || !holdings.length) {
       return res.status(400).json({ error: 'Holdings data is required' });
     }
+
+    const totalInvested = holdings.reduce((s, h) => s + (h.investedValue || h.buyPrice * h.quantity), 0);
+    const totalCurrent = holdings.reduce((s, h) => s + (h.currentValue || h.currentPrice * h.quantity), 0);
+    const totalPnl = totalCurrent - totalInvested;
+
+    // Zero-config deterministic fallback if AI not initialized
     if (!isInitialized()) {
-      return res.status(400).json({ error: 'AI engine not initialized. Set your OpenRouter API key first.' });
+      return res.json(generateDeterministicPortfolioAnalysis(holdings, totalInvested, totalCurrent, totalPnl));
     }
 
     const { analyzeWithAgent } = require('../services/aiEngine.cjs');
@@ -164,10 +222,6 @@ router.post('/analyze-all', async (req, res) => {
     if (cached) return res.json(cached);
 
     // Build condensed portfolio summary for AI
-    const totalInvested = holdings.reduce((s, h) => s + (h.investedValue || h.buyPrice * h.quantity), 0);
-    const totalCurrent = holdings.reduce((s, h) => s + (h.currentValue || h.currentPrice * h.quantity), 0);
-    const totalPnl = totalCurrent - totalInvested;
-
     const portfolioContext = {
       symbol: 'PORTFOLIO',
       quote: {

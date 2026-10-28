@@ -6,7 +6,7 @@ export default function Settings({ settings, setSettings, isAIReady, setIsAIRead
   const [message, setMessage] = useState('');
 
   const handleSaveGeminiKey = async () => {
-    if (!settings.geminiKey.trim()) {
+    if (!settings.geminiKey?.trim()) {
       setMessage('Please enter a valid API key');
       return;
     }
@@ -17,7 +17,8 @@ export default function Settings({ settings, setSettings, isAIReady, setIsAIRead
     try {
       await initAI(settings.geminiKey, settings.useProModel);
       setIsAIReady(true);
-      setMessage('✅ OpenRouter AI connected successfully!');
+      const isGemini = settings.geminiKey.trim().startsWith('AIza');
+      setMessage(`✅ ${isGemini ? 'Google Gemini Native' : 'OpenRouter'} AI connected successfully!`);
     } catch (err) {
       setMessage(`❌ Failed: ${err.message}`);
       setIsAIReady(false);
@@ -35,7 +36,7 @@ export default function Settings({ settings, setSettings, isAIReady, setIsAIRead
     <div className="fade-in-up settings-section">
       <div className="dashboard-header">
         <h1>⚙️ Settings</h1>
-        <p>Configure your API keys and preferences</p>
+        <p>Configure your API keys and execution preferences</p>
       </div>
 
       {/* Engine Status Banner */}
@@ -43,25 +44,25 @@ export default function Settings({ settings, setSettings, isAIReady, setIsAIRead
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <span style={{ fontSize: '1.5rem' }}>⚡</span>
           <div>
-            <div style={{ fontWeight: 800, color: 'var(--color-buy)', fontSize: '0.95rem' }}>Deterministic Quant Engine: Fully Active</div>
+            <div style={{ fontWeight: 800, color: 'var(--color-buy)', fontSize: '0.95rem' }}>Deterministic Quant & Algorithmic Synthesis: 100% Active</div>
             <div className="text-xs text-muted" style={{ marginTop: '0.15rem' }}>
-              All 200 liquid multi-cap stocks, Morning Breakout Radar, Candlestick Charts, Technical Indicators, and the 5-Pillar Quant Consensus Engine run locally with 100% free uptime and zero API key requirements.
+              All 200 multi-cap stocks, Morning Breakout Radar, Volatility Compression Squeezes, Technical Indicators, Profit Maximizer, and the 5-Pillar Quant Consensus Engine run locally with 100% free uptime and zero API keys required.
             </div>
           </div>
         </div>
       </div>
 
-      {/* OpenRouter API Key (Optional) */}
+      {/* AI Intelligence Key (OpenRouter or Google Gemini) */}
       <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
         <div className="settings-group">
-          <h3>🔑 Experimental LLM Key (Optional)</h3>
-          <p>Optional: Connect OpenRouter if you wish to run experimental conversational LLM debates. Not required for stock scanning or quant verdicts.</p>
+          <h3>🔑 AI Intelligence Key (OpenRouter or Google Gemini — Optional)</h3>
+          <p>Optional: Connect OpenRouter (<code>sk-or-...</code>) or Google Gemini (<code>AIza...</code>) for conversational multi-agent synthesis. All core quantitative analysis works with or without a key.</p>
           <div className="settings-row">
             <input
               type="password"
               className="input"
-              placeholder="sk-or-v1-..."
-              value={settings.geminiKey}
+              placeholder="Enter OpenRouter (sk-or-...) or Google Gemini (AIza...) key..."
+              value={settings.geminiKey || ''}
               onChange={(e) => setSettings(prev => ({ ...prev, geminiKey: e.target.value }))}
               id="gemini-api-key"
             />
@@ -69,29 +70,42 @@ export default function Settings({ settings, setSettings, isAIReady, setIsAIRead
               {saving ? '⏳ Connecting...' : '🔌 Connect'}
             </button>
             <button className="btn btn-secondary" onClick={async () => {
-              if (!settings.geminiKey) return setMessage('❌ Please enter an API key first');
+              const key = settings.geminiKey?.trim();
+              if (!key) return setMessage('❌ Please enter an API key first');
               try {
-                const res = await fetch('https://openrouter.ai/api/v1/auth/key', { headers: { Authorization: `Bearer ${settings.geminiKey}` } });
-                const data = await res.json();
-                if (data.data) {
-                  const limit = data.data.limit;
-                  const usage = data.data.usage;
-                  if (limit === null) setMessage(`✅ OpenRouter Credit: Unlimited (Usage: $${usage.toFixed(4)})`);
-                  else setMessage(`✅ OpenRouter Credit: $${(limit - usage).toFixed(4)} remaining (Limit: $${limit})`);
+                if (key.startsWith('AIza')) {
+                  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+                  const data = await res.json();
+                  if (data.models?.length > 0) {
+                    setMessage(`✅ Google Gemini Key: Active & Verified! (${data.models.length} models accessible)`);
+                    setIsAIReady(true);
+                  } else {
+                    setMessage(`❌ Google Gemini Key invalid or quota restricted: ${data.error?.message || 'Check key'}`);
+                  }
                 } else {
-                  setMessage('❌ Failed to check balance (Invalid Key)');
+                  const res = await fetch('https://openrouter.ai/api/v1/auth/key', { headers: { Authorization: `Bearer ${key}` } });
+                  const data = await res.json();
+                  if (data.data) {
+                    const limit = data.data.limit;
+                    const usage = data.data.usage;
+                    if (limit === null) setMessage(`✅ OpenRouter Credit: Unlimited (Usage: $${usage.toFixed(4)})`);
+                    else setMessage(`✅ OpenRouter Credit: $${(limit - usage).toFixed(4)} remaining (Limit: $${limit})`);
+                    setIsAIReady(true);
+                  } else {
+                    setMessage('❌ Failed to check balance (Invalid OpenRouter Key)');
+                  }
                 }
               } catch(e) {
-                setMessage('❌ Failed to check balance');
+                setMessage('❌ Failed to check balance: ' + e.message);
               }
             }}>
-              💰 Check Balance
+              🔍 Verify Key
             </button>
           </div>
           <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span className={`ai-status ${isAIReady ? 'ready' : 'not-ready'}`}>
               <span className="ai-status-dot"></span>
-              {isAIReady ? 'Connected' : 'Not Connected'}
+              {isAIReady ? 'LLM Cloud Enhanced' : 'Local Algorithmic Baseline'}
             </span>
           </div>
         </div>
