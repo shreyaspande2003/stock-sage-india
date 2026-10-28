@@ -280,13 +280,14 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
             )}
           </div>
 
-          {/* Market Cap Filter Tabs */}
+          {/* Market Cap & Velocity Filter Tabs */}
           <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
             {[
               { id: 'ALL', label: 'All' },
-              { id: 'LARGE_CAP', label: '💎 Large' },
-              { id: 'MID_CAP', label: '🚀 Mid' },
-              { id: 'SMALL_CAP', label: '⚡ High-Beta' }
+              { id: 'HIGH_VELOCITY', label: '⚡ 10%+ Velocity' },
+              { id: 'MID_CAP', label: '🚀 Mid Cap' },
+              { id: 'SMALL_CAP', label: '🔥 High-Beta' },
+              { id: 'LARGE_CAP', label: '💎 Large Cap' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -313,14 +314,22 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
             <p className="text-muted text-sm">Scanning multi-cap universe for setups...</p>
           ) : (() => {
             const sourceList = (swingPicks.topLongs?.length > 0) ? swingPicks.topLongs : (swingPicks.setups || []);
-            const filtered = sourceList.filter(pick => capFilter === 'ALL' || pick.cap === capFilter);
+            const filtered = sourceList.filter(pick => {
+              if (capFilter === 'HIGH_VELOCITY') {
+                return pick.setup === 'HIGH_VELOCITY_BREAKOUT' || (pick.expectedReturnT1Pct >= 9.5);
+              }
+              if (capFilter === 'ALL') return true;
+              return pick.cap === capFilter;
+            });
 
             if (filtered.length === 0) {
               return (
                 <p className="text-muted text-sm">
-                  {swingPicks.marketRegime?.regime === 'RISK_OFF'
+                  {capFilter === 'HIGH_VELOCITY'
+                    ? 'No stocks currently satisfy the strict 10%+ volatility squeeze criteria. Waiting for compression coil.'
+                    : swingPicks.marketRegime?.regime === 'RISK_OFF'
                     ? `No ${capFilter === 'ALL' ? '' : capFilter.replace('_', ' ')} setups triggered. Cash protection active.`
-                    : 'No setups matching this market cap tier right now.'}
+                    : 'No setups matching this filter right now.'}
                 </p>
               );
             }
@@ -332,7 +341,7 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
                 style={{
                   cursor: 'pointer',
                   borderRadius: 'var(--radius-sm)',
-                  borderLeft: `3px solid ${pick.tradeWorthy ? 'var(--color-buy)' : 'rgba(255,255,255,0.2)'}`,
+                  borderLeft: `3px solid ${pick.setup === 'HIGH_VELOCITY_BREAKOUT' ? 'var(--accent-cyan)' : pick.tradeWorthy ? 'var(--color-buy)' : 'rgba(255,255,255,0.2)'}`,
                   marginBottom: '0.4rem'
                 }}
                 onClick={() => handleSelectStock({ symbol: pick.symbol, name: pick.name })}
@@ -350,13 +359,24 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
                         </span>
                       )}
                     </div>
-                    <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>
-                      Score {pick.qualityScore}/100
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      {(pick.expectedReturnT1Pct >= 9.5 || pick.setup === 'HIGH_VELOCITY_BREAKOUT') && (
+                        <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(6, 182, 212, 0.15)', color: 'var(--accent-cyan)', fontWeight: 700 }}>
+                          ⚡ 10%+
+                        </span>
+                      )}
+                      <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>
+                        Score {pick.qualityScore}/100
+                      </span>
+                    </div>
                   </div>
                   <div className="text-xs text-muted" style={{ marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between' }}>
                     <span>{pick.setup?.replace(/_/g, ' ')} • ₹{pick.price}</span>
-                    {pick.t1 && <span style={{ color: 'var(--color-buy)' }}>Tgt: ₹{pick.t1}</span>}
+                    {pick.t1 && (
+                      <span style={{ color: 'var(--color-buy)', fontWeight: 600 }}>
+                        Tgt: ₹{pick.t1} {pick.expectedReturnT1Pct ? `(+${Math.round(pick.expectedReturnT1Pct)}%)` : ''}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

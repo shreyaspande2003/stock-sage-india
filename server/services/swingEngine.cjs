@@ -55,7 +55,11 @@ function buildSwingPlaybook(quote, technicals, ohlcv = [], marketRegime = null) 
   const confluence = [];
 
   // V2 Setup Classifier
-  if (stockRegime === 'TREND' && distToRes < 1.0 && volRatio >= 1.5 && bbWidthPct < 40 && rsi < 78) {
+  if (stockRegime === 'TREND' && distToRes <= 1.5 && volRatio >= 1.7 && bbWidthPct <= 38 && rsi >= 50 && rsi <= 76) {
+    setup = 'HIGH_VELOCITY_BREAKOUT';
+    bias = 'LONG';
+    confluence.push('High-Velocity Thrust: Coiled volatility (<38% BB) exploding on 1.7x+ volume with target >= 10%.');
+  } else if (stockRegime === 'TREND' && distToRes < 1.0 && volRatio >= 1.4 && bbWidthPct < 40 && rsi < 78) {
     setup = 'BREAKOUT';
     bias = 'LONG';
     confluence.push('Breakout setup: Tightly coiled under resistance with volume spike.');
@@ -88,11 +92,12 @@ function buildSwingPlaybook(quote, technicals, ohlcv = [], marketRegime = null) 
   let stop;
   let atrMult = 1.8;
   
-  if (setup === 'BREAKOUT') atrMult = 1.6;
+  if (setup === 'HIGH_VELOCITY_BREAKOUT') atrMult = 1.3;
+  else if (setup === 'BREAKOUT') atrMult = 1.6;
   else if (setup === 'MEAN_REVERSION') atrMult = 1.4;
 
   if (bias === 'LONG') {
-    if (setup === 'BREAKOUT') entry = round(Math.max(price, nearestResistance * 0.998));
+    if (setup === 'HIGH_VELOCITY_BREAKOUT' || setup === 'BREAKOUT') entry = round(Math.max(price, nearestResistance * 0.998));
     
     const atrStop = entry - atrMult * atr;
     const structStop = nearestSupport - 0.25 * atr;
@@ -123,11 +128,16 @@ function buildSwingPlaybook(quote, technicals, ohlcv = [], marketRegime = null) 
   let t2 = strongResistance;
   
   if (tradeWorthy && bias === 'LONG') {
-    const minT1 = entry + riskPts * 1.5;
-    t1 = Math.min(nearestResistance, minT1);
-    if (t1 <= entry) t1 = minT1; // fallback
-    
-    t2 = Math.max(strongResistance, entry + riskPts * 2.5);
+    if (setup === 'HIGH_VELOCITY_BREAKOUT') {
+      const min10Pct = round(entry * 1.10);
+      t1 = round(Math.max(nearestResistance, min10Pct));
+      t2 = round(Math.max(strongResistance, entry * 1.18));
+    } else {
+      const minT1 = entry + riskPts * 1.5;
+      t1 = Math.min(nearestResistance, minT1);
+      if (t1 <= entry) t1 = minT1; // fallback
+      t2 = Math.max(strongResistance, entry + riskPts * 2.5);
+    }
   }
 
   const rewardPts = bias === 'SHORT' ? (entry - t1) : (t1 - entry);
