@@ -39,6 +39,7 @@ const MULTI_CAP_UNIVERSE = [
   { symbol: 'VOLTAS', cap: 'MID_CAP', sector: 'Consumer' },
   { symbol: 'AUROPHARMA', cap: 'MID_CAP', sector: 'Pharma' },
   { symbol: 'LUPIN', cap: 'MID_CAP', sector: 'Pharma' },
+  { symbol: 'PPLPHARMA', cap: 'MID_CAP', sector: 'Pharma / CDMO' },
   { symbol: 'ASHOKLEY', cap: 'MID_CAP', sector: 'Auto' },
   { symbol: 'FEDERALBNK', cap: 'MID_CAP', sector: 'Banking' },
 
