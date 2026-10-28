@@ -20,20 +20,40 @@
     "reject_if_extended_pct_over_ema50": 12
   },
   "risk": {
-    "risk_pct_per_trade": { "swing": 0.5, "trend": 0.5 },
-    "regime_mult": { "RISK_ON": 1.0, "NEUTRAL": 0.5, "RISK_OFF": 0.25 },
+    "max_risk_pct_per_trade": 1.0,
+    "risk_pct_per_trade": { "swing": 1.0, "trend": 1.0 },
+    "regime_mult": { "RISK_ON": 1.0, "NEUTRAL": 0.5, "RISK_OFF": 0.0 },
     "max_position_pct_capital": 15,
-    "max_portfolio_heat_pct": 4,
+    "max_portfolio_heat_pct": 6.0,
     "max_positions": { "swing": 8, "trend": 4 },
     "max_per_sector": 2,
     "min_rr_t1": 1.5,
     "stop_atr_mult": { "BREAKOUT": 1.6, "PULLBACK": 1.8, "CONTINUATION": 1.8, "MEAN_REVERSION": 1.4, "TREND_RIDE": 3.0 },
     "min_stop_atr": 0.8,
-    "time_stop_days": 10
+    "time_stop_days": 10,
+    "circuit_breaker": {
+      "level_1_drawdown_pct": 5.0,
+      "level_1_size_reduction": 0.5,
+      "level_2_drawdown_pct": 10.0,
+      "level_2_action": "FREEZE_ENTRIES"
+    }
   },
   "costs": {
     "slippage_pct_per_side": 0.15,
-    "stt_delivery_pct": 0.1
+    "stt_delivery_sell_pct": 0.1,
+    "brokerage_pct": 0.05,
+    "brokerage_cap_per_order": 20,
+    "exchange_turnover_pct": 0.00345,
+    "gst_pct": 18.0,
+    "stamp_duty_buy_pct": 0.015,
+    "dp_charges_flat_per_sell": 15.93
+  },
+  "execution": {
+    "gap_through_stop": "FILL_AT_OPEN",
+    "same_bar_ambiguity": "STOP_FIRST",
+    "circuit_veto": true,
+    "min_turnover_cr": 5.0,
+    "max_pct_daily_volume": 1.0
   },
   "llm": {
     "shortlist_size": 30,

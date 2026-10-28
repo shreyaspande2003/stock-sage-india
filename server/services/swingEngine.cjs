@@ -129,14 +129,19 @@ function buildSwingPlaybook(quote, technicals, ohlcv = [], marketRegime = null) 
   
   if (tradeWorthy && bias === 'LONG') {
     if (setup === 'HIGH_VELOCITY_BREAKOUT') {
-      const min10Pct = round(entry * 1.10);
-      t1 = round(Math.max(nearestResistance, min10Pct));
-      t2 = round(Math.max(strongResistance, entry * 1.18));
+      // Scaled by ATR volatility: 2.5x ATR for T1, 4.5x ATR for T2
+      const atrTarget1 = entry + 2.5 * atr;
+      t1 = round(Math.max(nearestResistance, atrTarget1));
+      t2 = round(Math.max(strongResistance, entry + 4.5 * atr));
+    } else if (setup === 'MEAN_REVERSION') {
+      // Mean reversion targets Bollinger Mid and Upper Bands
+      t1 = round(bb?.middle || entry + 1.5 * atr);
+      t2 = round(bb?.upper || entry + 2.5 * atr);
     } else {
-      const minT1 = entry + riskPts * 1.5;
-      t1 = Math.min(nearestResistance, minT1);
-      if (t1 <= entry) t1 = minT1; // fallback
-      t2 = Math.max(strongResistance, entry + riskPts * 2.5);
+      // Standard Breakout / Trend Pullback: Structure or 2.0x ATR minimum
+      const minAtrT1 = entry + 2.0 * atr;
+      t1 = round(nearestResistance && nearestResistance > minAtrT1 ? nearestResistance : minAtrT1);
+      t2 = round(strongResistance && strongResistance > t1 ? strongResistance : entry + 3.5 * atr);
     }
   }
 

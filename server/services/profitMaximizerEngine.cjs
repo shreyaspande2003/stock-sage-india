@@ -18,58 +18,96 @@ function calculateDynamicPositionSize(params) {
     capital = 100000,
     entryPrice,
     stopLoss,
-    winRate = 0.52,     // Historical edge (52% win rate for breakout strategies)
-    avgWinLoss = 2.2,   // Average winner / average loser
+    winRate = 0.52,          // Empirical backtested edge
+    avgWinLoss = 2.2,        // Win / loss ratio
     atr,
     quantScore = 50,
     regimeMultiplier = 1.0,
-    maxPortfolioRisk = 0.06, // Max 6% total portfolio risk
-    existingRiskPct = 0,     // Already deployed risk
+    maxPortfolioRisk = 0.06,  // Max 6% total portfolio heat
+    existingRiskPct = 0,      // Already deployed risk
+    openPositionsCount = 0,
+    maxPositions = 8,
+    sectorPositionsCount = 0,
+    maxPerSector = 2,
+    portfolioDrawdownPct = 0, // Peak-to-trough drawdown %
   } = params;
 
   if (!entryPrice || !stopLoss || entryPrice <= 0) {
-    return { shares: 0, capitalDeployed: 0, riskAmount: 0, method: 'INSUFFICIENT_DATA' };
+    return { shares: 0, capitalDeployed: 0, riskAmount: 0, method: 'INSUFFICIENT_DATA', explanation: 'Missing entry price or stop loss.' };
+  }
+
+  // 1. Guardrail: Max open positions cap
+  if (openPositionsCount >= maxPositions) {
+    return { shares: 0, capitalDeployed: 0, riskAmount: 0, method: 'MAX_POSITIONS_REACHED', explanation: `Portfolio capacity full: ${openPositionsCount}/${maxPositions} open positions. No new entries permitted.` };
+  }
+
+  // 2. Guardrail: Sector concentration cap
+  if (sectorPositionsCount >= maxPerSector) {
+    return { shares: 0, capitalDeployed: 0, riskAmount: 0, method: 'SECTOR_CONCENTRATION_CAP', explanation: `Sector limit reached: ${sectorPositionsCount}/${maxPerSector} positions in this sector. Diversification rule active.` };
+  }
+
+  // 3. Guardrail: Drawdown Circuit Breaker
+  let circuitBreakerMult = 1.0;
+  let circuitBreakerState = 'NORMAL';
+  if (portfolioDrawdownPct >= 10.0) {
+    return {
+      shares: 0, capitalDeployed: 0, riskAmount: 0,
+      method: 'CIRCUIT_BREAKER_LEVEL_2',
+      circuitBreakerState: 'LEVEL_2_FREEZE',
+      explanation: `DRAWDOWN CIRCUIT BREAKER LEVEL 2 ACTIVE (${portfolioDrawdownPct}% >= 10%). All new trading paused until recovery.`
+    };
+  } else if (portfolioDrawdownPct >= 5.0) {
+    circuitBreakerMult = 0.5;
+    circuitBreakerState = 'LEVEL_1_REDUCED_50';
   }
 
   const riskPerShare = Math.abs(entryPrice - stopLoss);
   if (riskPerShare <= 0) {
-    return { shares: 0, capitalDeployed: 0, riskAmount: 0, method: 'ZERO_RISK_PER_SHARE' };
+    return { shares: 0, capitalDeployed: 0, riskAmount: 0, method: 'ZERO_RISK_PER_SHARE', explanation: 'Entry equals stop loss.' };
   }
 
   // Kelly Criterion: f* = (bp - q) / b
-  // b = avgWinLoss, p = winRate, q = 1 - winRate
   const kellyFraction = Math.max(0, (avgWinLoss * winRate - (1 - winRate)) / avgWinLoss);
-  
-  // Half-Kelly for safety (institutional standard)
   const halfKelly = kellyFraction / 2;
 
   // Conviction multiplier based on quant score
   let convictionMult = 0.5;
-  if (quantScore >= 85) convictionMult = 1.2;       // Ultra-high conviction: 120% of base
-  else if (quantScore >= 75) convictionMult = 1.0;   // High conviction: full size
-  else if (quantScore >= 65) convictionMult = 0.8;   // Moderate: 80%
-  else if (quantScore >= 50) convictionMult = 0.6;   // Low conviction: 60%
-  else convictionMult = 0.35;                        // Sub-50: minimal exposure
+  if (quantScore >= 85) convictionMult = 1.2;
+  else if (quantScore >= 75) convictionMult = 1.0;
+  else if (quantScore >= 65) convictionMult = 0.8;
+  else if (quantScore >= 50) convictionMult = 0.6;
+  else convictionMult = 0.35;
 
-  // ATR-based volatility adjustment — high vol = smaller size
+  // ATR volatility adjustment
   const atrPct = atr && entryPrice > 0 ? (atr / entryPrice) * 100 : 2.0;
   let volAdjust = 1.0;
-  if (atrPct > 4.0) volAdjust = 0.5;       // Very high vol stock
-  else if (atrPct > 3.0) volAdjust = 0.7;  // High vol
-  else if (atrPct > 2.0) volAdjust = 0.85; // Normal vol
-  else volAdjust = 1.0;                    // Low vol, full size
+  if (atrPct > 4.0) volAdjust = 0.5;
+  else if (atrPct > 3.0) volAdjust = 0.7;
+  else if (atrPct > 2.0) volAdjust = 0.85;
+  else volAdjust = 1.0;
 
-  // Effective risk budget per trade
-  const availableRisk = Math.max(0, maxPortfolioRisk - existingRiskPct);
-  const baseRiskPct = Math.min(halfKelly, 0.02); // Cap at 2% per trade
-  const adjustedRiskPct = baseRiskPct * convictionMult * volAdjust * regimeMultiplier;
-  const effectiveRiskPct = Math.min(adjustedRiskPct, availableRisk);
+  // HARD RISK CEILING: Strictly 1.0% maximum risk of total equity per trade
+  const HARD_MAX_RISK_PER_TRADE = 0.01;
+  const availableHeat = Math.max(0, maxPortfolioRisk - existingRiskPct);
+
+  // Calculate position risk percentage
+  const rawRiskPct = Math.min(halfKelly, HARD_MAX_RISK_PER_TRADE);
+  const adjustedRiskPct = rawRiskPct * convictionMult * volAdjust * regimeMultiplier * circuitBreakerMult;
+  const effectiveRiskPct = Math.min(adjustedRiskPct, HARD_MAX_RISK_PER_TRADE, availableHeat);
+
+  if (effectiveRiskPct <= 0) {
+    return {
+      shares: 0, capitalDeployed: 0, riskAmount: 0,
+      method: 'PORTFOLIO_HEAT_EXHAUSTED',
+      explanation: `Portfolio heat limit (6% max) fully exhausted. Current heat: ${round(existingRiskPct * 100, 1)}%. Cannot add risk.`
+    };
+  }
 
   const maxRiskCapital = capital * effectiveRiskPct;
   let shares = Math.floor(maxRiskCapital / riskPerShare);
 
-  // Notional cap: never exceed 20% of capital in a single position (up from 15% for high conviction)
-  const maxNotionalPct = quantScore >= 80 ? 0.20 : 0.15;
+  // Notional cap: Never exceed 15% of capital in a single position (20% for score >= 85)
+  const maxNotionalPct = quantScore >= 85 ? 0.20 : 0.15;
   const maxByNotional = Math.floor((capital * maxNotionalPct) / entryPrice);
   shares = Math.min(shares, maxByNotional);
   shares = Math.max(0, shares);
@@ -84,15 +122,18 @@ function calculateDynamicPositionSize(params) {
     riskAmount,
     notionalPct,
     effectiveRiskPct: round(effectiveRiskPct * 100, 2),
+    hardCapPct: round(HARD_MAX_RISK_PER_TRADE * 100, 2),
+    circuitBreakerState,
     kellyFraction: round(kellyFraction * 100, 1),
     halfKelly: round(halfKelly * 100, 1),
     convictionMult: round(convictionMult, 2),
     volAdjust: round(volAdjust, 2),
+    circuitBreakerMult: round(circuitBreakerMult, 2),
     maxNotionalPct: round(maxNotionalPct * 100),
-    method: 'KELLY_ATR_DYNAMIC',
+    method: 'HARD_CAPPED_KELLY_ATR',
     explanation: shares > 0
-      ? `Kelly suggests ${round(kellyFraction * 100, 1)}% risk. Half-Kelly (${round(halfKelly * 100, 1)}%) adjusted by conviction (${round(convictionMult, 2)}x) and volatility (${round(volAdjust, 2)}x) → ${round(effectiveRiskPct * 100, 2)}% risk per trade = ${shares} shares (₹${capitalDeployed} deployed, ${notionalPct}% of capital).`
-      : 'Position size is zero — insufficient edge, high volatility, or portfolio risk budget exhausted.'
+      ? `Hard risk cap: 1% max per trade. Sized at ${round(effectiveRiskPct * 100, 2)}% risk (₹${riskAmount}) → ${shares} shares (₹${capitalDeployed} notional, ${notionalPct}% of capital). Circuit breaker: ${circuitBreakerState}.`
+      : 'Position size is zero — risk budget or sector constraints reached.'
   };
 }
 
@@ -182,8 +223,10 @@ function calculatePyramidPlan(params) {
 }
 
 // ────────────────────────────────────────────────────────────────
-// 3. MULTI-TIMEFRAME CONFLUENCE — Weekly Chart Alignment
-//    Requires weekly trend alignment before taking daily breakout triggers
+// 3. MULTI-TIMEFRAME CONFLUENCE — Weekly Chart Alignment (Zero Repaint)
+//    Requires weekly trend alignment before taking daily breakout triggers.
+//    Strict Quant Rule: Uses ONLY completed weekly bars so mid-week fluctuations
+//    cannot alter historical weekly EMAs or trigger lookahead repainting.
 // ────────────────────────────────────────────────────────────────
 function analyzeMultiTimeframe(dailyOhlcv = []) {
   if (!dailyOhlcv || dailyOhlcv.length < 50) {
@@ -195,49 +238,55 @@ function analyzeMultiTimeframe(dailyOhlcv = []) {
     };
   }
 
-  // Aggregate daily bars into weekly bars
+  // Aggregate daily bars into weekly bars (Monday through Friday)
   const weeklyBars = [];
   let weekOpen = null, weekHigh = -Infinity, weekLow = Infinity, weekClose = 0, weekVol = 0;
-  let currentWeek = null;
+  let currentWeekKey = null;
 
   for (const bar of dailyOhlcv) {
     const d = new Date(bar.date);
-    const weekKey = `${d.getFullYear()}-W${Math.ceil((d.getDate() + new Date(d.getFullYear(), d.getMonth(), 1).getDay()) / 7)}`;
+    // Standard ISO week grouping (Monday = 1 ... Sunday = 7)
+    const day = d.getUTCDay() || 7;
+    const monday = new Date(d);
+    monday.setUTCDate(d.getUTCDate() - day + 1);
+    const weekKey = monday.toISOString().split('T')[0];
     
-    if (currentWeek !== weekKey) {
-      if (currentWeek !== null) {
-        weeklyBars.push({ open: weekOpen, high: weekHigh, low: weekLow, close: weekClose, volume: weekVol });
+    if (currentWeekKey !== weekKey) {
+      if (currentWeekKey !== null) {
+        weeklyBars.push({ weekStart: currentWeekKey, open: weekOpen, high: weekHigh, low: weekLow, close: weekClose, volume: weekVol, barCount: weekVol > 0 ? 1 : 0 });
       }
-      currentWeek = weekKey;
+      currentWeekKey = weekKey;
       weekOpen = bar.open;
       weekHigh = bar.high;
       weekLow = bar.low;
       weekClose = bar.close;
-      weekVol = bar.volume;
+      weekVol = bar.volume || 0;
     } else {
       weekHigh = Math.max(weekHigh, bar.high);
       weekLow = Math.min(weekLow, bar.low);
       weekClose = bar.close;
-      weekVol += bar.volume;
+      weekVol += (bar.volume || 0);
     }
   }
-  if (currentWeek !== null) {
-    weeklyBars.push({ open: weekOpen, high: weekHigh, low: weekLow, close: weekClose, volume: weekVol });
-  }
 
-  if (weeklyBars.length < 10) {
+  // To prevent repainting, we only use COMPLETED weekly bars for weekly indicators.
+  // The current in-progress week is excluded from indicator calculation so mid-week
+  // bars never alter historical weekly EMAs or RSI.
+  const completedWeeklyBars = [...weeklyBars];
+
+  if (completedWeeklyBars.length < 10) {
     return {
       weeklyTrend: 'INSUFFICIENT_WEEKLY',
       weeklyAligned: false,
       confluenceBonus: 0,
-      summary: 'Fewer than 10 weekly bars available.',
+      summary: `Fewer than 10 completed weekly bars available (${completedWeeklyBars.length} found).`,
     };
   }
 
-  const weeklCloses = weeklyBars.map(b => b.close);
-  const latest = weeklCloses[weeklCloses.length - 1];
+  const weeklyCloses = completedWeeklyBars.map(b => b.close);
+  const latestDailyClose = dailyOhlcv[dailyOhlcv.length - 1].close;
 
-  // Calculate weekly 10 and 30 period EMA equivalent
+  // Calculate weekly 10 and 30 period EMA equivalent strictly on completed bars
   const calcEMA = (values, period) => {
     const k = 2 / (period + 1);
     let ema = values[0];
@@ -247,11 +296,11 @@ function analyzeMultiTimeframe(dailyOhlcv = []) {
     return ema;
   };
 
-  const weeklyEma10 = calcEMA(weeklCloses, 10);
-  const weeklyEma30 = calcEMA(weeklCloses, Math.min(30, weeklCloses.length));
+  const weeklyEma10 = calcEMA(weeklyCloses, 10);
+  const weeklyEma30 = calcEMA(weeklyCloses, Math.min(30, weeklyCloses.length));
 
   // Weekly RSI (rough estimate using last 14 weeks)
-  const last14 = weeklCloses.slice(-15);
+  const last14 = weeklyCloses.slice(-15);
   let gains = 0, losses = 0, gCount = 0, lCount = 0;
   for (let i = 1; i < last14.length; i++) {
     const diff = last14[i] - last14[i - 1];
@@ -267,8 +316,8 @@ function analyzeMultiTimeframe(dailyOhlcv = []) {
   let weeklyAligned = false;
   let confluenceBonus = 0;
 
-  const priceAboveWeekly10 = latest > weeklyEma10;
-  const priceAboveWeekly30 = latest > weeklyEma30;
+  const priceAboveWeekly10 = latestDailyClose > weeklyEma10;
+  const priceAboveWeekly30 = latestDailyClose > weeklyEma30;
   const ema10AboveEma30 = weeklyEma10 > weeklyEma30;
 
   if (priceAboveWeekly10 && priceAboveWeekly30 && ema10AboveEma30 && weeklyRSI >= 50) {

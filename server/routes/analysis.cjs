@@ -83,6 +83,28 @@ router.post('/analyze', async (req, res) => {
     // Step 2: Run through expert pipeline (uses AI if key set, else high-accuracy deterministic synthesis)
     const expertAnalysis = await runExpertPipeline(stockData);
 
+    // Step 3: Register qualified institutional setup in immutable live audit log
+    let signalAudit = null;
+    if (stockData.swingPlaybook?.tradeWorthy && (stockData.quantConsensus?.score || 0) >= 65) {
+      try {
+        const { logSignal } = require('../db/signalLogger.cjs');
+        signalAudit = logSignal({
+          symbol,
+          signalDate: new Date().toISOString().split('T')[0],
+          setup: stockData.swingPlaybook.setup,
+          score: stockData.quantConsensus.score,
+          entryPrice: stockData.swingPlaybook.levels?.entry || stockData.quote.price,
+          stopLoss: stockData.swingPlaybook.levels?.stop || (stockData.quote.price * 0.96),
+          target1: stockData.swingPlaybook.levels?.t1 || (stockData.quote.price * 1.08),
+          target2: stockData.swingPlaybook.levels?.t2 || (stockData.quote.price * 1.15),
+          atr: stockData.technicals?.indicators?.atr?.value || (stockData.quote.price * 0.02),
+          marketRegime: stockData.marketRegime?.regime || 'NEUTRAL'
+        });
+      } catch (logErr) {
+        console.warn('[Analysis] Signal logger notice:', logErr.message);
+      }
+    }
+
     const result = {
       symbol: symbol.toUpperCase(),
       analyzedAt: new Date().toISOString(),
@@ -93,6 +115,7 @@ router.post('/analyze', async (req, res) => {
       swingPlaybook: stockData.swingPlaybook,
       quantConsensus: stockData.quantConsensus,
       profitMaximizer: stockData.profitMaximizer,
+      signalAudit,
       news: stockData.news,
       reddit: stockData.reddit,
       chartData: stockData.chartData,
@@ -115,6 +138,31 @@ router.get('/market-news', async (req, res) => {
   } catch (err) {
     console.error('[Route] Market news error:', err.message);
     res.status(500).json({ error: 'Failed to fetch market news' });
+  }
+});
+
+// Public Tamper-Proof Signal Audit Log (Tier 3 Institutional Verification)
+router.get('/signals-audit', (req, res) => {
+  try {
+    const { getPublicAuditLog } = require('../db/signalLogger.cjs');
+    const limit = parseInt(req.query.limit) || 100;
+    const audit = getPublicAuditLog(limit);
+    res.json(audit);
+  } catch (err) {
+    console.error('[Route] Signals audit error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch public audit log' });
+  }
+});
+
+// Verify cryptographic SHA-256 fingerprint of any signal
+router.get('/verify-signal/:uuid', (req, res) => {
+  try {
+    const { verifySignalIntegrity } = require('../db/signalLogger.cjs');
+    const verification = verifySignalIntegrity(req.params.uuid);
+    res.json(verification);
+  } catch (err) {
+    console.error('[Route] Verify signal error:', err.message);
+    res.status(500).json({ error: 'Failed to verify signal' });
   }
 });
 
