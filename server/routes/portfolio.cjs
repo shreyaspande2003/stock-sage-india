@@ -7,16 +7,93 @@ const { aggregateStockData } = require('../services/dataAggregator.cjs');
 const { isInitialized, runExpertPipeline } = require('../services/aiEngine.cjs');
 const yahooFinance = require('../services/yahooFinance.cjs');
 const { UNIVERSE_200 } = require('../config/universe200.cjs');
+const XLSX = require('xlsx');
 
-// Configure multer for file upload
+// Configure multer for file upload (supports up to 10MB CSV or Excel files)
 const storage = multer.memoryStorage();
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB max
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-// Build quick lookup map for symbols to sectors and market caps
+// Build quick lookup map for symbols to sectors and company names
 const SECTOR_MAP = {};
+const NAME_TO_SYMBOL_MAP = {};
 UNIVERSE_200.forEach(item => {
-  SECTOR_MAP[item.symbol.toUpperCase()] = { sector: item.sector, name: item.name, cap: item.cap };
+  const sym = item.symbol.toUpperCase();
+  SECTOR_MAP[sym] = { sector: item.sector, name: item.name, cap: item.cap };
+  const cleanName = item.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  NAME_TO_SYMBOL_MAP[cleanName] = sym;
+  NAME_TO_SYMBOL_MAP[sym.toLowerCase()] = sym;
 });
+
+// Resolve symbol from raw text, stock name, or company name
+function resolveSymbol(raw) {
+  if (!raw) return '';
+  let str = String(raw).trim().toUpperCase();
+  str = str.replace(/-EQ$/i, '').replace(/\.NS$/i, '').replace(/\.BO$/i, '').replace(/\s+EQ$/i, '').trim();
+
+  if (SECTOR_MAP[str]) return str;
+
+  const clean = str.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (NAME_TO_SYMBOL_MAP[clean]) return NAME_TO_SYMBOL_MAP[clean];
+
+  for (const [k, sym] of Object.entries(NAME_TO_SYMBOL_MAP)) {
+    if (clean.length >= 4 && (clean.includes(k) || k.includes(clean))) {
+      return sym;
+    }
+  }
+
+  // Fallback: extract first clean word token if alphanumeric
+  const firstToken = str.split(/[\s,]+/)[0];
+  if (firstToken && firstToken.length >= 2 && firstToken.length <= 15 && /^[A-Z0-9&-]+$/.test(firstToken)) {
+    return firstToken;
+  }
+  return str;
+}
+
+// Extract tabular holding records from Excel (.xlsx or .xls)
+function extractRecordsFromExcel(buffer) {
+  const wb = XLSX.read(buffer, { type: 'buffer' });
+  if (!wb.SheetNames || wb.SheetNames.length === 0) return { records: [], columnMap: {} };
+
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: '' });
+  if (!rawRows || rawRows.length === 0) return { records: [], columnMap: {} };
+
+  // Find header row (must have at least 3 columns to avoid matching statement title rows)
+  let headerRowIdx = -1;
+  for (let i = 0; i < Math.min(25, rawRows.length); i++) {
+    const validCells = (rawRows[i] || []).filter(c => String(c).trim().length > 0);
+    if (validCells.length < 3) continue;
+
+    const rowStr = validCells.map(c => String(c).toLowerCase().replace(/[^a-z0-9]/g, '')).join(' ');
+    const hasSymbolCol = rowStr.includes('symbol') || rowStr.includes('stock') || rowStr.includes('scrip') || rowStr.includes('company') || rowStr.includes('isin');
+    const hasQtyCol = rowStr.includes('qty') || rowStr.includes('quantity') || rowStr.includes('shares') || rowStr.includes('units') || rowStr.includes('available');
+    const hasPriceCol = rowStr.includes('price') || rowStr.includes('cost') || rowStr.includes('rate') || rowStr.includes('avg');
+
+    if (hasSymbolCol && (hasQtyCol || hasPriceCol)) {
+      headerRowIdx = i;
+      break;
+    }
+  }
+
+  if (headerRowIdx === -1) headerRowIdx = 0;
+  const headers = rawRows[headerRowIdx].map(h => String(h || '').trim());
+  const columnMap = detectColumns(headers);
+
+  const records = [];
+  for (let i = headerRowIdx + 1; i < rawRows.length; i++) {
+    const row = rawRows[i];
+    if (!row || row.length === 0) continue;
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = row[idx] !== undefined ? row[idx] : '';
+    });
+    if (obj[columnMap.symbol] || obj[columnMap.quantity]) {
+      records.push(obj);
+    }
+  }
+
+  return { records, columnMap };
+}
 
 // Shared pipeline to enrich holdings with live quotes, sector mapping, and institutional quant badges
 async function processEnrichedPortfolio(holdings) {
@@ -182,42 +259,58 @@ async function processEnrichedPortfolio(holdings) {
   };
 }
 
-// Upload and parse portfolio CSV
+// Upload and parse portfolio CSV or Excel (.xlsx / .xls)
 router.post('/upload', upload.single('portfolio'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const csvContent = req.file.buffer.toString('utf-8');
-    
-    // Parse CSV with flexible column detection
-    const records = parse(csvContent, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-      relax_column_count: true,
-    });
+    const filename = (req.file.originalname || '').toLowerCase();
+    const isExcel = filename.endsWith('.xlsx') || filename.endsWith('.xls') || (req.file.mimetype && req.file.mimetype.includes('sheet'));
 
-    if (records.length === 0) {
-      return res.status(400).json({ error: 'CSV file is empty' });
+    let records = [];
+    let columnMap = {};
+
+    if (isExcel) {
+      const parsedExcel = extractRecordsFromExcel(req.file.buffer);
+      records = parsedExcel.records;
+      columnMap = parsedExcel.columnMap;
+    } else {
+      const csvContent = req.file.buffer.toString('utf-8');
+      records = parse(csvContent, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_column_count: true,
+      });
+      if (records.length > 0) {
+        columnMap = detectColumns(Object.keys(records[0]));
+      }
     }
 
-    // Detect column names (flexible mapping)
-    const columnMap = detectColumns(Object.keys(records[0]));
-    
-    const holdings = records.map(row => ({
-      symbol: (row[columnMap.symbol] || '').toUpperCase().trim(),
-      quantity: parseFloat(row[columnMap.quantity]) || 0,
-      buyPrice: parseFloat(row[columnMap.buyPrice]) || 0,
-      buyDate: row[columnMap.buyDate] || '',
-      strategy: (row[columnMap.strategy] || 'LONG_TERM').toUpperCase().includes('SWING') ? 'SWING' : 'LONG_TERM',
-    })).filter(h => h.symbol && h.quantity > 0);
+    if (!records || records.length === 0) {
+      return res.status(400).json({ error: 'Uploaded file contains no readable holding records' });
+    }
+
+    const holdings = records.map(row => {
+      const rawSym = row[columnMap.symbol] || '';
+      const resolved = resolveSymbol(rawSym);
+      const rawQty = String(row[columnMap.quantity] || '0').replace(/,/g, '').trim();
+      const rawPrice = String(row[columnMap.buyPrice] || '0').replace(/,/g, '').trim();
+      return {
+        symbol: (resolved || rawSym).toUpperCase().trim(),
+        quantity: parseFloat(rawQty) || 0,
+        buyPrice: parseFloat(rawPrice) || 0,
+        buyDate: row[columnMap.buyDate] || new Date().toISOString().split('T')[0],
+        strategy: (row[columnMap.strategy] || 'LONG_TERM').toUpperCase().includes('SWING') ? 'SWING' : 'LONG_TERM',
+      };
+    }).filter(h => h.symbol && h.quantity > 0);
 
     if (holdings.length === 0) {
       return res.status(400).json({ 
-        error: 'No valid holdings found. Expected columns: Symbol, Quantity, BuyPrice, BuyDate',
-        detectedColumns: Object.keys(records[0]),
+        error: 'No valid holdings found. Expected columns: Symbol/Stock Name, Quantity, Buy/Avg Price',
+        detectedColumns: Object.keys(records[0] || {}),
       });
     }
 
@@ -225,7 +318,7 @@ router.post('/upload', upload.single('portfolio'), async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[Portfolio] Upload error:', err.message);
-    res.status(500).json({ error: 'Failed to parse portfolio CSV: ' + err.message });
+    res.status(500).json({ error: 'Failed to parse portfolio file: ' + err.message });
   }
 });
 
@@ -590,10 +683,11 @@ function detectColumns(headers) {
   };
 
   return {
-    symbol: findCol(['symbol', 'ticker', 'stock', 'scrip', 'name']),
-    quantity: findCol(['quantity', 'qty', 'shares', 'units', 'count']),
-    buyPrice: findCol(['buyprice', 'avgprice', 'price', 'cost', 'avg', 'purchase']),
-    buyDate: findCol(['buydate', 'date', 'purchasedate', 'bought']),
+    symbol: findCol(['symbol', 'ticker', 'scrip', 'stockname', 'stock', 'company', 'name']),
+    quantity: findCol(['quantity', 'qty', 'shares', 'units', 'count', 'available', 'holding']),
+    buyPrice: findCol(['buyprice', 'avgprice', 'averagebuyprice', 'avgcost', 'price', 'cost', 'avg', 'purchase']),
+    buyDate: findCol(['buydate', 'purchasedate', 'date', 'bought']),
+    strategy: findCol(['strategy', 'role', 'type', 'horizon', 'mode']),
   };
 }
 

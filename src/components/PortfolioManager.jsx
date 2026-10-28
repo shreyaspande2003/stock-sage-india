@@ -194,10 +194,10 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files[0];
-    if (file && (file.name.endsWith('.csv') || file.type === 'text/csv')) {
+    if (file && (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.type.includes('sheet') || file.type.includes('csv'))) {
       handleUpload(file);
     } else {
-      setError('Please upload a valid .csv file');
+      setError('Please upload a valid .csv or .xlsx Excel file');
     }
   };
 
@@ -443,9 +443,9 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
               ) : (
                 <>
                   <div className="portfolio-upload-icon" style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📄</div>
-                  <h3 style={{ fontSize: '1.1rem' }}>Drop your Zerodha / Groww / AngelOne CSV here</h3>
+                  <h3 style={{ fontSize: '1.1rem' }}>Drop your Groww / Zerodha / AngelOne Excel (.xlsx) or CSV here</h3>
                   <p className="text-muted text-sm" style={{ marginTop: '0.25rem' }}>
-                    or click to browse. Recognizes standard headers: <code>Symbol, Quantity, BuyPrice, BuyDate, Strategy</code>
+                    or click to browse. Automatically extracts holdings from Groww statements, Zerodha, Upstox, etc.
                   </p>
                 </>
               )}
@@ -453,7 +453,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
             <input
               type="file"
               ref={fileRef}
-              accept=".csv"
+              accept=".csv, .xlsx, .xls"
               style={{ display: 'none' }}
               onChange={(e) => handleUpload(e.target.files[0])}
             />
