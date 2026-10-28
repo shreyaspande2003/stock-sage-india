@@ -43,6 +43,8 @@ async function aggregateStockData(symbol, options = {}) {
   }
 
   const swingPlaybook = buildSwingPlaybook(quoteData, technicals, hist6m, regimeData.regime);
+  const { calculateQuantConsensus } = require('./quantConsensusEngine.cjs');
+  const quantConsensus = calculateQuantConsensus(quoteData, technicals, hist6m, swingPlaybook, regimeData);
 
   const allNews = [...newsData, ...newsAPIData];
   const uniqueNews = allNews.filter((item, index, self) =>
@@ -57,6 +59,7 @@ async function aggregateStockData(symbol, options = {}) {
     relativeStrength: rsData,
     technicals,
     swingPlaybook,
+    quantConsensus,
     news: uniqueNews,
     reddit: redditData,
     chartData: hist6m.map(d => ({

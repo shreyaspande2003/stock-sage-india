@@ -43,6 +43,7 @@ router.post('/data', async (req, res) => {
       quote: stockData.quote,
       technicals: stockData.technicals,
       swingPlaybook: stockData.swingPlaybook,
+      quantConsensus: stockData.quantConsensus,
       news: stockData.news,
       reddit: stockData.reddit,
       chartData: stockData.chartData,

@@ -38,11 +38,24 @@ export default function Settings({ settings, setSettings, isAIReady, setIsAIRead
         <p>Configure your API keys and preferences</p>
       </div>
 
-      {/* OpenRouter API Key */}
+      {/* Engine Status Banner */}
+      <div className="glass-card" style={{ marginBottom: '1.5rem', border: '1px solid rgba(16, 185, 129, 0.35)', background: 'rgba(16, 185, 129, 0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{ fontSize: '1.5rem' }}>⚡</span>
+          <div>
+            <div style={{ fontWeight: 800, color: 'var(--color-buy)', fontSize: '0.95rem' }}>Deterministic Quant Engine: Fully Active</div>
+            <div className="text-xs text-muted" style={{ marginTop: '0.15rem' }}>
+              All 200 liquid multi-cap stocks, Morning Breakout Radar, Candlestick Charts, Technical Indicators, and the 5-Pillar Quant Consensus Engine run locally with 100% free uptime and zero API key requirements.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* OpenRouter API Key (Optional) */}
       <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
         <div className="settings-group">
-          <h3>🔑 OpenRouter API Key</h3>
-          <p>Required for AI-powered stock analysis. Get a free key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/keys</a>.</p>
+          <h3>🔑 Experimental LLM Key (Optional)</h3>
+          <p>Optional: Connect OpenRouter if you wish to run experimental conversational LLM debates. Not required for stock scanning or quant verdicts.</p>
           <div className="settings-row">
             <input
               type="password"

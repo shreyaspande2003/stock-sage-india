@@ -119,9 +119,9 @@ export default function Navbar({ currentPage, setCurrentPage, isAIReady }) {
             <span>200 UNIVERSE (PRO)</span>
           </div>
 
-          <div className={`ai-status ${isAIReady ? 'ready' : 'not-ready'}`}>
-            <span className="pulse-dot" style={{ background: isAIReady ? 'var(--color-buy)' : 'var(--text-muted)' }}></span>
-            <span>{isAIReady ? 'AI AGENTS READY' : 'AI STANDBY'}</span>
+          <div className="ai-status ready">
+            <span className="pulse-dot" style={{ background: 'var(--accent-cyan)' }}></span>
+            <span>⚡ QUANT ENGINE ACTIVE</span>
           </div>
         </div>
       </nav>
