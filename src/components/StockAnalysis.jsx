@@ -646,6 +646,39 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
               ))}
             </div>
           )}
+
+          {/* Reddit Community Sentiment */}
+          {data.reddit?.posts?.length > 0 && (
+            <div className="glass-card" style={{ padding: '1.5rem', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>💬 Dalal Street Reddit Pulse</span>
+                </h3>
+                <span className="badge badge-neutral" style={{ fontSize: '0.65rem' }}>
+                  {data.reddit.summary?.totalPosts || data.reddit.posts.length} DISCUSSIONS
+                </span>
+              </div>
+              {data.reddit.posts.slice(0, 4).map((post, idx) => (
+                <div key={idx} style={{ padding: '0.6rem 0', borderBottom: idx < 3 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                  <a
+                    href={post.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 500, lineHeight: 1.4, display: 'block', textDecoration: 'none' }}
+                    onMouseEnter={(e) => e.target.style.color = 'var(--accent-cyan)'}
+                    onMouseLeave={(e) => e.target.style.color = 'var(--text-primary)'}
+                  >
+                    {post.title}
+                  </a>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', marginTop: '0.25rem', display: 'flex', gap: '0.75rem' }}>
+                    <span style={{ color: '#f97316', fontWeight: 600 }}>r/{post.subreddit}</span>
+                    <span>▲ {post.score} upvotes</span>
+                    <span>💬 {post.numComments} comments</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

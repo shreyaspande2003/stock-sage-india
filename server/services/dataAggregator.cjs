@@ -42,14 +42,14 @@ async function aggregateStockData(symbol, options = {}) {
     technicals.v2ScoreData.components.rs = rsData.rsScore;
   }
 
-  const swingPlaybook = buildSwingPlaybook(quoteData, technicals, hist6m, regimeData.regime);
-  const { calculateQuantConsensus } = require('./quantConsensusEngine.cjs');
-  const quantConsensus = calculateQuantConsensus(quoteData, technicals, hist6m, swingPlaybook, regimeData);
-
   const allNews = [...newsData, ...newsAPIData];
   const uniqueNews = allNews.filter((item, index, self) =>
     index === self.findIndex(n => n.title.toLowerCase().substring(0, 40) === item.title.toLowerCase().substring(0, 40))
   ).slice(0, 15);
+
+  const swingPlaybook = buildSwingPlaybook(quoteData, technicals, hist6m, regimeData.regime);
+  const { calculateQuantConsensus } = require('./quantConsensusEngine.cjs');
+  const quantConsensus = calculateQuantConsensus(quoteData, technicals, hist6m, swingPlaybook, regimeData, uniqueNews, redditData);
 
   const packet = {
     symbol: symbol.toUpperCase(),

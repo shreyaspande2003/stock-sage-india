@@ -8,7 +8,7 @@ function round(n, d = 2) {
   return Math.round(n * p) / p;
 }
 
-function calculateQuantConsensus(quote, technicals, historical = [], swingPlaybook = {}, marketRegime = {}) {
+function calculateQuantConsensus(quote, technicals, historical = [], swingPlaybook = {}, marketRegime = {}, news = [], reddit = {}) {
   const currentPrice = quote?.price || 0;
   const ind = technicals?.indicators || {};
   const ema20 = ind.movingAverages?.ema20 || null;
@@ -221,6 +221,10 @@ function calculateQuantConsensus(quote, technicals, historical = [], swingPlaybo
     actionSummary = `Lacks positive quantitative alignment. Trading below key moving averages with weak relative strength. Preserve capital and wait for structural trend reversal.`;
   }
 
+  const topNews = Array.isArray(news) && news.length > 0 ? news[0] : null;
+  const redditCount = reddit?.posts?.length || 0;
+  const redditBuzz = reddit?.summary?.totalEngagement || 0;
+
   return {
     score: totalScore,
     grade: verdictGrade,
@@ -230,6 +234,13 @@ function calculateQuantConsensus(quote, technicals, historical = [], swingPlaybo
     verdictColor,
     actionSummary,
     setupName,
+    marketIntelligence: {
+      topCatalyst: topNews?.title || null,
+      topNewsSource: topNews?.source || null,
+      topNewsLink: topNews?.link || null,
+      redditDiscussions: redditCount,
+      redditEngagement: redditBuzz,
+    },
     executionLevels: {
       entryZone: `₹${entryPrice} – ₹${round(entryPrice * 1.025)}`,
       entryPrice,
