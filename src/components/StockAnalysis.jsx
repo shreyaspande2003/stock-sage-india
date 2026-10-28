@@ -545,12 +545,12 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
                 </span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
-                <div><span className="text-xs text-muted block">Trigger/Entry</span><strong style={{ fontFamily: 'monospace' }}>₹{data.swingPlaybook.levels?.entry || quote?.price}</strong></div>
-                <div><span className="text-xs text-muted block">Stop Loss</span><strong style={{ fontFamily: 'monospace', color: 'var(--color-sell)' }}>₹{data.swingPlaybook.levels?.stop}</strong></div>
-                <div><span className="text-xs text-muted block">Target 1 (T1)</span><strong style={{ fontFamily: 'monospace', color: 'var(--color-buy)' }}>₹{data.swingPlaybook.levels?.t1}</strong></div>
-                <div><span className="text-xs text-muted block">Target 2 (T2)</span><strong style={{ fontFamily: 'monospace', color: 'var(--color-buy)' }}>₹{data.swingPlaybook.levels?.t2}</strong></div>
-                <div><span className="text-xs text-muted block">Risk : Reward</span><strong>{data.swingPlaybook.riskRewardT1 || 'N/A'}:1</strong></div>
-                <div><span className="text-xs text-muted block">Position Size</span><strong>{data.swingPlaybook.position?.shares || 0} shares</strong></div>
+                <div><span className="text-xs text-muted block">Trigger/Entry</span><strong className="font-mono">{formatPrice(data.swingPlaybook.levels?.entry || quote?.price)}</strong></div>
+                <div><span className="text-xs text-muted block">Stop Loss</span><strong className="font-mono" style={{ color: 'var(--color-sell)' }}>{formatPrice(data.swingPlaybook.levels?.stop)}</strong></div>
+                <div><span className="text-xs text-muted block">Target 1 (T1)</span><strong className="font-mono" style={{ color: 'var(--color-buy)' }}>{formatPrice(data.swingPlaybook.levels?.t1)}</strong></div>
+                <div><span className="text-xs text-muted block">Target 2 (T2)</span><strong className="font-mono" style={{ color: 'var(--color-buy)' }}>{formatPrice(data.swingPlaybook.levels?.t2)}</strong></div>
+                <div><span className="text-xs text-muted block">Risk : Reward</span><strong className="font-mono">{data.swingPlaybook.riskRewardT1 || 'N/A'}:1</strong></div>
+                <div><span className="text-xs text-muted block">Position Size</span><strong className="font-mono">{data.swingPlaybook.position?.shares || 0} shares</strong></div>
               </div>
               {data.swingPlaybook.explain?.howToTrade && (
                 <div style={{ fontSize: '0.75rem', padding: '0.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', lineHeight: 1.4, color: 'var(--text-secondary)' }}>
