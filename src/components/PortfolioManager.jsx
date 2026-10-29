@@ -31,6 +31,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
   const [manualBuyPrice, setManualBuyPrice] = useState('');
   const [manualBuyDate, setManualBuyDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [manualStrategy, setManualStrategy] = useState('LONG_TERM'); // 'LONG_TERM' | 'SWING'
+  const [lastSyncTime, setLastSyncTime] = useState(() => new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
 
   const fileRef = useRef(null);
 
@@ -41,6 +42,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
     try {
       const data = await loadGrowwStatement();
       setPortfolio(data);
+      setLastSyncTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
       if (data?.holdings?.length > 0) {
         const minimal = data.holdings.map(h => ({
           symbol: h.symbol,
@@ -55,6 +57,36 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
       setError(err.message || 'Failed to auto-load Groww holdings statement. Try uploading the file.');
     }
     setLoading(false);
+  };
+
+  // Synchronize holdings with backend to get live prices & quant badges
+  const syncHoldings = async (holdingsList, silent = false) => {
+    if (!holdingsList || holdingsList.length === 0) {
+      setPortfolio(null);
+      setPortfolioAI(null);
+      localStorage.removeItem('stocksage_active_portfolio');
+      return;
+    }
+
+    if (!silent) setLoading(true);
+    setError('');
+    try {
+      const data = await submitManualPortfolio(holdingsList);
+      setPortfolio(data);
+      setLastSyncTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
+      // Persist raw holdings in localStorage
+      const minimal = holdingsList.map(h => ({
+        symbol: h.symbol.toUpperCase().trim(),
+        quantity: Number(h.quantity),
+        buyPrice: Number(h.buyPrice),
+        buyDate: h.buyDate || new Date().toISOString().split('T')[0],
+        strategy: h.strategy || 'LONG_TERM',
+      }));
+      localStorage.setItem('stocksage_active_portfolio', JSON.stringify(minimal));
+    } catch (err) {
+      if (!silent) setError(err.message || 'Failed to update portfolio holdings');
+    }
+    if (!silent) setLoading(false);
   };
 
   // Auto-load portfolio from localStorage on mount (with auto-heal for old LT bug)
@@ -78,34 +110,21 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
     }
   }, []);
 
-  // Synchronize holdings with backend to get live prices & quant badges
-  const syncHoldings = async (holdingsList) => {
-    if (!holdingsList || holdingsList.length === 0) {
-      setPortfolio(null);
-      setPortfolioAI(null);
-      localStorage.removeItem('stocksage_active_portfolio');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    try {
-      const data = await submitManualPortfolio(holdingsList);
-      setPortfolio(data);
-      // Persist raw holdings in localStorage
-      const minimal = holdingsList.map(h => ({
-        symbol: h.symbol.toUpperCase().trim(),
-        quantity: Number(h.quantity),
-        buyPrice: Number(h.buyPrice),
-        buyDate: h.buyDate || new Date().toISOString().split('T')[0],
-        strategy: h.strategy || 'LONG_TERM',
-      }));
-      localStorage.setItem('stocksage_active_portfolio', JSON.stringify(minimal));
-    } catch (err) {
-      setError(err.message || 'Failed to update portfolio holdings');
-    }
-    setLoading(false);
-  };
+  // Background live price polling every 25 seconds
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      const saved = localStorage.getItem('stocksage_active_portfolio');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            syncHoldings(parsed, true);
+          }
+        } catch (e) {}
+      }
+    }, 25000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const handleManualAdd = (e) => {
     e.preventDefault();
@@ -759,9 +778,37 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
                 <h3 style={{ margin: 0 }}>📋 Current Holdings & Real-Time Trade Desk</h3>
                 <span className="text-xs text-muted">Click strategy badge (💎 CORE / ⚡ SWING) to toggle mode. Full institutional prices & actions below.</span>
               </div>
-              <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-primary)', fontWeight: 600 }}>
-                Showing {filteredHoldings.length} of {allHoldings.length} Holdings
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <span style={{
+                  fontSize: '0.7rem',
+                  color: 'var(--color-buy)',
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: '12px',
+                  padding: '0.2rem 0.6rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}>
+                  <span className="pulse-dot" style={{ width: '6px', height: '6px', background: 'var(--color-buy)' }}></span>
+                  LIVE PULSE: 25s Auto-Sync ({lastSyncTime})
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-xs btn-secondary"
+                  onClick={() => {
+                    if (portfolio?.holdings) syncHoldings(portfolio.holdings);
+                  }}
+                  disabled={loading}
+                  title="Force refresh live prices from NSE"
+                >
+                  {loading ? 'Syncing...' : '🔄 Sync Now'}
+                </button>
+                <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                  Showing {filteredHoldings.length} of {allHoldings.length} Holdings
+                </span>
+              </div>
             </div>
 
             {/* Quick Action Filter Pills */}

@@ -301,10 +301,10 @@ async function processEnrichedPortfolio(holdings) {
     const sym = holding.symbol.toUpperCase();
     const meta = SECTOR_MAP[sym] || {};
     try {
-      // Race quote fetch against a 2500ms timeout so a slow symbol never blocks the portfolio
+      // Race quote fetch against a 6000ms timeout so high-load symbols don't drop to fallback
       const quotePromise = Promise.race([
         yahooFinance.getQuote(sym),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Quote timeout')), 2500))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Quote timeout')), 6000))
       ]);
       const quote = await quotePromise;
       const currentPrice = quote.price || holding.closingPrice || holding.buyPrice;
@@ -520,7 +520,7 @@ async function processEnrichedPortfolio(holdings) {
     },
   };
 
-  cache.set(cacheKey, result, 600); // 10-minute cache for blazing-fast responses
+  cache.set(cacheKey, result, 25); // 25-second cache for real-time live trading responses
   return result;
 }
 

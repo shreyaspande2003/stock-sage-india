@@ -7,10 +7,11 @@ export default function Navbar({ currentPage, setCurrentPage, isAIReady }) {
     bankNifty: { price: 51892, change: 0.74 },
     vix: { price: 14.15, change: -2.88 },
     sensex: { price: 79942, change: 0.51 },
-    regime: 'RISK_ON'
+    regime: 'RISK_ON',
+    lastUpdated: null,
   });
 
-  useEffect(() => {
+  const fetchRegime = () => {
     getMarketRegime().then(reg => {
       if (reg && reg.nifty?.price) {
         setTickerData({
@@ -18,10 +19,18 @@ export default function Navbar({ currentPage, setCurrentPage, isAIReady }) {
           bankNifty: { price: Math.round(reg.nifty.price * 2.13), change: reg.nifty.changePercent + 0.15 },
           vix: { price: reg.vix?.price || 14.2, change: -1.8 },
           sensex: { price: Math.round(reg.nifty.price * 3.28), change: reg.nifty.changePercent },
-          regime: reg.regime || 'RISK_ON'
+          regime: reg.regime || 'RISK_ON',
+          lastUpdated: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         });
       }
     }).catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchRegime();
+    // Live background pulse: refreshes ticker and regime every 20 seconds automatically
+    const interval = setInterval(fetchRegime, 20000);
+    return () => clearInterval(interval);
   }, []);
 
   const navItems = [

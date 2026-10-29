@@ -24,6 +24,7 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
   const searchRef = useRef(null);
   const debounceRef = useRef(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [lastSyncTime, setLastSyncTime] = useState(() => new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
 
   // High-fidelity institutional chime using native Web Audio API
   const playBreakoutChime = () => {
@@ -69,25 +70,45 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
     checkAndInit();
   }, [settings.geminiKey]);
 
-  // Fetch market news, swing scan, morning triggers, regime, and backtest results on mount
+  // Fetch market news, swing scan, morning triggers, regime on mount + auto-poll every 20s
   useEffect(() => {
-    getMarketNews().then(data => setMarketNews(data.news || [])).catch(() => {});
-    scanSwingSetups().then(data => setSwingPicks(data)).catch(() => {});
-    getMorningTriggers().then(data => {
-      setMorningData(data);
-      if (data?.counts?.ep > 0 || data?.counts?.fired > 0) {
-        playBreakoutChime();
-      }
-    }).catch(() => {});
-    getMarketRegime().then(data => setMarketRegime(data)).catch(() => {});
-    getBacktestResults().then(data => setBacktestStats(data)).catch(() => {});
+    const doSync = () => {
+      getMarketNews().then(data => setMarketNews(data.news || [])).catch(() => {});
+      scanSwingSetups().then(data => setSwingPicks(data)).catch(() => {});
+      getMorningTriggers().then(data => {
+        setMorningData(prev => {
+          if (prev) {
+            const prevFired = prev?.counts?.fired || 0;
+            const newFired = data?.counts?.fired || 0;
+            if (newFired > prevFired) {
+              playBreakoutChime();
+            }
+          } else if (data?.counts?.ep > 0 || data?.counts?.fired > 0) {
+            playBreakoutChime();
+          }
+          return data;
+        });
+        setLastSyncTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
+      }).catch(() => {});
+      getMarketRegime().then(data => setMarketRegime(data)).catch(() => {});
+      getBacktestResults().then(data => setBacktestStats(data)).catch(() => {});
+    };
+
+    doSync();
+    const intervalId = setInterval(doSync, 20000);
+    return () => clearInterval(intervalId);
   }, []);
 
   const refreshMorningTriggers = async () => {
     setMorningLoading(true);
     try {
-      const data = await getMorningTriggers();
+      const [data, reg] = await Promise.all([
+        getMorningTriggers(),
+        getMarketRegime().catch(() => null)
+      ]);
       setMorningData(data);
+      if (reg) setMarketRegime(reg);
+      setLastSyncTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
       if (data?.counts?.ep > 0 || data?.counts?.fired > 0) {
         playBreakoutChime();
       }
@@ -192,10 +213,13 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
       <div className="command-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
               <span className="pulse-dot" style={{ background: 'var(--color-buy)', boxShadow: '0 0 10px var(--color-buy)' }}></span>
               <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.08em', color: 'var(--accent-cyan)', textTransform: 'uppercase' }}>
-                NSE LIVE FEED • 200 LIQUID MULTI-CAP ASSETS • V2.4 ENGINE
+                NSE LIVE FEED • 200 LIQUID ASSETS • V2.4 ENGINE
+              </span>
+              <span style={{ fontSize: '0.68rem', color: 'var(--color-buy)', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '12px', padding: '0.1rem 0.5rem', fontWeight: 700 }}>
+                🟢 20s AUTO-SYNC ({lastSyncTime})
               </span>
             </div>
             <h1 style={{ fontSize: '2.1rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0, background: 'linear-gradient(135deg, #ffffff 40%, #94a3b8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
@@ -389,7 +413,22 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
               </span>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <span style={{
+              fontSize: '0.7rem',
+              color: 'var(--color-buy)',
+              background: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: '12px',
+              padding: '0.15rem 0.55rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem'
+            }}>
+              <span className="pulse-dot" style={{ width: '6px', height: '6px', background: 'var(--color-buy)' }}></span>
+              LIVE AUTO-SYNC: {lastSyncTime}
+            </span>
             <span className="text-muted" style={{ fontSize: '0.75rem' }}>
               IST: {morningData?.sessionInfo?.istTimeString || 'Syncing...'}
             </span>
@@ -431,7 +470,7 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
                 transition: 'all 0.2s ease'
               }}
             >
-              {morningLoading ? 'Scanning...' : '🔄 Live Refresh'}
+              {morningLoading ? 'Scanning...' : '🔄 Sync Now'}
             </button>
           </div>
         </div>

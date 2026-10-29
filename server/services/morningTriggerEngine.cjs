@@ -190,7 +190,7 @@ async function getMorningBreakoutTriggers(tier = 'PRO') {
   const sessionInfo = getMarketSessionInfo();
   const universe = getActiveUniverse(tier);
 
-  const results = await mapPool(universe, 6, async (item) => {
+  const results = await mapPool(universe, 12, async (item) => {
     try {
       return await analyzeStockTrigger(item, sessionInfo);
     } catch (err) {

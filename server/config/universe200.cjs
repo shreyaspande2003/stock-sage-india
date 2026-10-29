@@ -110,6 +110,7 @@ const UNIVERSE_200 = [
   { symbol: 'PERSISTENT', name: 'Persistent Systems', cap: 'MID_CAP', sector: 'IT Services', tier: 'PRO' },
   { symbol: 'COFORGE', name: 'Coforge Limited', cap: 'MID_CAP', sector: 'IT Services', tier: 'PRO' },
   { symbol: 'KPITTECH', name: 'KPIT Technologies', cap: 'MID_CAP', sector: 'Auto Tech', tier: 'PRO' },
+  { symbol: 'BSOFT', name: 'Birlasoft Limited', cap: 'MID_CAP', sector: 'IT Services', tier: 'PRO' },
   { symbol: 'TATAELXSI', name: 'Tata Elxsi', cap: 'MID_CAP', sector: 'Design & Tech', tier: 'PRO' },
   { symbol: 'CYIENT', name: 'Cyient Limited', cap: 'SMALL_CAP', sector: 'Engg Services', tier: 'PRO' },
   { symbol: 'MPHASIS', name: 'Mphasis Limited', cap: 'MID_CAP', sector: 'IT Services', tier: 'PRO' },
