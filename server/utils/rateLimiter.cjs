@@ -37,10 +37,10 @@ class RateLimiter {
 
 // Pre-configured limiters
 const limiters = {
-  yahooFinance: new RateLimiter(5, 1000), // 5 req/sec
-  googleNews: new RateLimiter(2, 1000),   // 2 req/sec
-  reddit: new RateLimiter(3, 1000),       // 3 req/sec
-  gemini: new RateLimiter(10, 60000),     // 10 req/min
+  yahooFinance: new RateLimiter(20, 1000), // 20 req/sec for fast batch loading
+  googleNews: new RateLimiter(2, 1000),    // 2 req/sec
+  reddit: new RateLimiter(3, 1000),        // 3 req/sec
+  gemini: new RateLimiter(10, 60000),      // 10 req/min
 };
 
 module.exports = { RateLimiter, limiters };

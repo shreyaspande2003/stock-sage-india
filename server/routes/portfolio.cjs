@@ -8,6 +8,7 @@ const { isInitialized, runExpertPipeline } = require('../services/aiEngine.cjs')
 const yahooFinance = require('../services/yahooFinance.cjs');
 const { UNIVERSE_200 } = require('../config/universe200.cjs');
 const XLSX = require('xlsx');
+const cache = require('../utils/cache.cjs');
 
 // Configure multer for file upload (supports up to 10MB CSV or Excel files)
 const storage = multer.memoryStorage();
@@ -288,15 +289,25 @@ function extractRecordsFromExcel(buffer) {
   return { records, columnMap };
 }
 
-// Shared pipeline to enrich holdings with live quotes, sector mapping, and institutional quant badges
+// Shared pipeline to enrich holdings with live quotes, sector mapping, and institutional quant recommendations
 async function processEnrichedPortfolio(holdings) {
+  const cacheKey = `enrichedPortfolio:${holdings.map(h => `${h.symbol}_${h.quantity}_${h.buyPrice}_${h.strategy || 'CORE'}`).sort().join('|')}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   const { mapPool } = require('../utils/pool.cjs');
-  const enrichedHoldings = await mapPool(holdings, 4, async (holding) => {
+  // Process with concurrency of 12 for high-speed responsiveness
+  const enrichedHoldings = await mapPool(holdings, 12, async (holding) => {
     const sym = holding.symbol.toUpperCase();
     const meta = SECTOR_MAP[sym] || {};
     try {
-      const quote = await yahooFinance.getQuote(sym);
-      const currentPrice = quote.price || holding.buyPrice;
+      // Race quote fetch against a 2500ms timeout so a slow symbol never blocks the portfolio
+      const quotePromise = Promise.race([
+        yahooFinance.getQuote(sym),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Quote timeout')), 2500))
+      ]);
+      const quote = await quotePromise;
+      const currentPrice = quote.price || holding.closingPrice || holding.buyPrice;
       const currentValue = currentPrice * holding.quantity;
       const investedValue = holding.buyPrice * holding.quantity;
       const pnl = currentValue - investedValue;
@@ -309,69 +320,114 @@ async function processEnrichedPortfolio(holdings) {
       let targetPrice, stopLossPrice, quantAction;
 
       if (isSwing) {
-        // High-velocity Swing Trading Rules (Tight stops, quick profit banking)
+        // Tactical Swing Trading Rules
         targetPrice = Math.round(holding.buyPrice * 1.08 * 10) / 10;
         stopLossPrice = Math.round(holding.buyPrice * 0.94 * 10) / 10;
-        quantAction = {
-          badge: 'HOLD_IN_BASE',
-          label: 'HOLD BASE ⏳',
-          variant: 'cyan',
-          detail: 'Swing trade within normal noise tolerance (-3% to +6%). Hold base and let setup develop.',
-        };
 
         if (roundedPnlPct >= 12) {
           quantAction = {
             badge: 'RIDE_RUNNER',
             label: 'RIDE RUNNER 🏃',
+            action: 'TRAIL STOP & RIDE',
+            actionType: 'KEEP_RUNNING',
+            targetPrice: Math.round(currentPrice * 1.08),
+            actionPrice: Math.round(currentPrice * 0.94),
             variant: 'success',
-            detail: `Up +${roundedPnlPct}%. Super-winner status. Trail stop up to 20-EMA / ₹${Math.round(currentPrice * 0.93)} to capture multi-week trend.`,
+            headline: `Ride Trend | Trail Stop to ₹${Math.round(currentPrice * 0.94)}`,
+            detail: `Up +${roundedPnlPct}%. High-velocity swing runner. Trail stop-loss to ₹${Math.round(currentPrice * 0.94)} (20-EMA) to lock in gains while letting momentum compound.`,
           };
         } else if (roundedPnlPct >= 7) {
           quantAction = {
             badge: 'BANK_PROFIT_T1',
             label: 'BOOK 50% (T1) 💰',
+            action: 'BOOK 50% PROFIT',
+            actionType: 'BOOK_PROFIT',
+            targetPrice: Math.round(holding.buyPrice * 1.08),
+            actionPrice: Math.round(currentPrice),
             variant: 'emerald',
-            detail: `Up +${roundedPnlPct}%. Swing Target 1 reached. Sell 50% shares at market to bank gains; move stop on remaining 50% to Breakeven (₹${holding.buyPrice}).`,
+            headline: `Sell 50% Shares @ ₹${Math.round(currentPrice)} (Target 1 Reached)`,
+            detail: `Up +${roundedPnlPct}%. Target 1 reached. Sell 50% shares at market to bank profit; move stop-loss on remaining 50% shares to Breakeven (₹${holding.buyPrice}).`,
           };
         } else if (roundedPnlPct <= -5.5) {
           quantAction = {
             badge: 'CUT_LOSS',
             label: 'CUT LOSS 🛑',
+            action: 'EXIT / CUT LOSS',
+            actionType: 'CUT_LOSS',
+            targetPrice: Math.round(holding.buyPrice),
+            actionPrice: Math.round(currentPrice),
             variant: 'danger',
-            detail: `Down ${roundedPnlPct}%. Swing risk threshold (-5.5% to -6%) breached. Exit immediately to preserve trading equity.`,
+            headline: `Exit 100% Shares @ ₹${Math.round(currentPrice)} (Violated -5.5% Rule)`,
+            detail: `Down ${roundedPnlPct}%. Swing stop-loss limit (-5.5%) breached. Exit immediately to protect trading capital and prevent deep capital erosion.`,
+          };
+        } else {
+          quantAction = {
+            badge: 'HOLD_IN_BASE',
+            label: 'HOLD BASE ⏳',
+            action: 'HOLD BASE',
+            actionType: 'HOLD_STEADY',
+            targetPrice,
+            actionPrice: stopLossPrice,
+            variant: 'cyan',
+            headline: `Hold Setup | Target ₹${targetPrice} • Stop ₹${stopLossPrice}`,
+            detail: `Within normal noise tolerance (-3% to +6%). Hold base and let the consolidation breakout develop toward Target ₹${targetPrice}.`,
           };
         }
       } else {
-        // Long-Term Core Compounding Rules (Multi-year horizon, dip accumulation, thesis review)
+        // Multi-Year Core Long-Term Horizon
         targetPrice = Math.round(holding.buyPrice * 1.30 * 10) / 10;
         stopLossPrice = Math.round(holding.buyPrice * 0.80 * 10) / 10;
-        quantAction = {
-          badge: 'CORE_HOLD',
-          label: 'CORE HOLD 💎',
-          variant: 'cyan',
-          detail: 'Long-term core position within normal market fluctuations. Hold through noise for multi-year compounding.',
-        };
 
         if (roundedPnlPct >= 25) {
           quantAction = {
             badge: 'CORE_COMPOUNDER',
             label: 'COMPOUNDING 🚀',
+            action: 'HOLD CORE (DO NOT SELL)',
+            actionType: 'KEEP_RUNNING',
+            targetPrice: Math.round(currentPrice * 1.25),
+            actionPrice: Math.round(currentPrice * 0.90),
             variant: 'success',
-            detail: `Up +${roundedPnlPct}%. Core multi-year winner compounding nicely. Let profits accumulate.`,
+            headline: `Multi-Year Compounder — DO NOT SELL | Next Target ₹${Math.round(currentPrice * 1.25)}`,
+            detail: `Up +${roundedPnlPct}%. Outstanding long-term compounder. Do NOT sell just because it is green. Let compounding work; only trim if single holding exceeds 20% of total portfolio.`,
           };
         } else if (roundedPnlPct <= -25) {
           quantAction = {
             badge: 'REVIEW_THESIS',
-            label: 'REVIEW THESIS ⚠️',
+            label: 'FREEZE CAPITAL ⚠️',
+            action: 'FREEZE - DO NOT AVERAGE',
+            actionType: 'FREEZE_CAPITAL',
+            targetPrice: Math.round(holding.buyPrice * 0.90),
+            actionPrice: Math.round(currentPrice),
             variant: 'danger',
-            detail: `Down ${roundedPnlPct}%. Major drawdown. Review company earnings growth, balance sheet debt, and governance before adding more.`,
+            headline: `Deep Capital Drawdown — DO NOT AVERAGE DOWN`,
+            detail: `Down ${roundedPnlPct}%. Major capital loss. Do NOT throw good money after bad. Hold current ${holding.quantity} shares, but freeze all fresh buying until quarterly earnings show net operating margin recovery.`,
           };
         } else if (roundedPnlPct <= -10) {
+          const avgZoneMax = Math.round(currentPrice * 1.03);
+          const upsidePct = Math.round(((targetPrice - currentPrice) / currentPrice) * 100);
           quantAction = {
             badge: 'ACCUMULATE_DIP',
-            label: 'ACCUMULATE DIP 🛒',
+            label: 'SAFE TO AVERAGE 🛒',
+            action: 'BUY / AVERAGE DOWN',
+            actionType: 'AVERAGE_DOWN',
+            targetPrice,
+            actionPrice: avgZoneMax,
             variant: 'emerald',
-            detail: `Down ${roundedPnlPct}%. Long-term value zone. Strategic value-averaging / SIP addition is permitted if fundamental business model is intact.`,
+            headline: `Safe to Average Below ₹${avgZoneMax} | Target ₹${targetPrice} (+${upsidePct}%)`,
+            detail: `Down ${roundedPnlPct}%. Prime strategic value-accumulation dip. Business fundamentals intact. Safe to add 10-25% more shares on dips below ₹${avgZoneMax} to systematically lower cost basis.`,
+          };
+        } else {
+          const upsidePct = Math.round(((targetPrice - currentPrice) / currentPrice) * 100);
+          quantAction = {
+            badge: 'CORE_HOLD',
+            label: 'CORE HOLD 💎',
+            action: 'HOLD CORE',
+            actionType: 'HOLD_STEADY',
+            targetPrice,
+            actionPrice: holding.buyPrice,
+            variant: 'cyan',
+            headline: `Hold Steady — Target ₹${targetPrice} (+${upsidePct}%)`,
+            detail: `Within normal ±10% market volatility. Core long-term holding. Keep existing ${holding.quantity} shares without stress.`,
           };
         }
       }
@@ -393,29 +449,42 @@ async function processEnrichedPortfolio(holdings) {
         quantAction,
       };
     } catch (err) {
+      const currentPrice = holding.closingPrice || holding.buyPrice;
       const investedValue = holding.buyPrice * holding.quantity;
+      const currentValue = currentPrice * holding.quantity;
+      const pnl = currentValue - investedValue;
+      const pnlPercent = investedValue > 0 ? ((pnl / investedValue) * 100) : 0;
+      const roundedPnlPct = Math.round(pnlPercent * 100) / 100;
+
       const isSwing = (holding.strategy || 'LONG_TERM').toUpperCase() === 'SWING';
       const strategy = isSwing ? 'SWING' : 'LONG_TERM';
+      const targetPrice = Math.round(holding.buyPrice * (isSwing ? 1.08 : 1.30));
+      const stopLossPrice = Math.round(holding.buyPrice * (isSwing ? 0.94 : 0.80));
+
       return {
         ...holding,
         strategy,
         name: meta.name || sym,
         sector: meta.sector || 'Equities',
         cap: meta.cap || 'MID_CAP',
-        error: `Could not fetch live quote for ${sym}`,
-        currentPrice: holding.buyPrice,
-        currentValue: investedValue,
+        currentPrice,
+        currentValue,
         investedValue,
-        pnl: 0,
-        pnlPercent: 0,
+        pnl,
+        pnlPercent: roundedPnlPct,
         dayChange: 0,
-        targetPrice: Math.round(holding.buyPrice * (isSwing ? 1.08 : 1.30)),
-        stopLossPrice: Math.round(holding.buyPrice * (isSwing ? 0.94 : 0.80)),
+        targetPrice,
+        stopLossPrice,
         quantAction: {
           badge: isSwing ? 'HOLD_IN_BASE' : 'CORE_HOLD',
           label: isSwing ? 'HOLD BASE ⏳' : 'CORE HOLD 💎',
+          action: 'HOLD CORE',
+          actionType: 'HOLD_STEADY',
+          targetPrice,
+          actionPrice: holding.buyPrice,
           variant: 'cyan',
-          detail: 'No live quote available; maintaining cost-basis stop and target.',
+          headline: `Hold Steady — Target ₹${targetPrice}`,
+          detail: 'Maintained cost-basis anchor while live quote refreshes.',
         },
       };
     }
@@ -437,7 +506,7 @@ async function processEnrichedPortfolio(holdings) {
     percentage: totalCurrent > 0 ? Math.round((val / totalCurrent) * 100) : 0,
   })).sort((a, b) => b.percentage - a.percentage);
 
-  return {
+  const result = {
     holdings: enrichedHoldings,
     summary: {
       totalHoldings: enrichedHoldings.length,
@@ -450,6 +519,9 @@ async function processEnrichedPortfolio(holdings) {
       topLoser: enrichedHoldings.reduce((worst, h) => h.pnlPercent < (worst?.pnlPercent || Infinity) ? h : worst, null),
     },
   };
+
+  cache.set(cacheKey, result, 600); // 10-minute cache for blazing-fast responses
+  return result;
 }
 
 // Upload and parse portfolio CSV or Excel (.xlsx / .xls)

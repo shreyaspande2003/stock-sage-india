@@ -23,6 +23,7 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
   const [analyzingPortfolio, setAnalyzingPortfolio] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('manual'); // 'manual' | 'csv'
+  const [actionFilter, setActionFilter] = useState('ALL'); // 'ALL' | 'AVERAGE' | 'HOLD' | 'FREEZE' | 'PROFIT'
 
   // Manual Form inputs
   const [manualSymbol, setManualSymbol] = useState('');
@@ -262,6 +263,20 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
 
   const coreCount = portfolio?.holdings?.filter(h => (h.strategy || 'LONG_TERM').toUpperCase() !== 'SWING').length || 0;
   const swingCount = portfolio?.holdings?.filter(h => (h.strategy || 'LONG_TERM').toUpperCase() === 'SWING').length || 0;
+
+  const allHoldings = portfolio?.holdings || [];
+  const averageCount = allHoldings.filter(h => h.quantAction?.actionType === 'AVERAGE_DOWN').length;
+  const holdCount = allHoldings.filter(h => h.quantAction?.actionType === 'HOLD_STEADY').length;
+  const freezeCount = allHoldings.filter(h => h.quantAction?.actionType === 'FREEZE_CAPITAL' || h.quantAction?.actionType === 'CUT_LOSS').length;
+  const profitCount = allHoldings.filter(h => h.quantAction?.actionType === 'KEEP_RUNNING' || h.quantAction?.actionType === 'BOOK_PROFIT').length;
+
+  const filteredHoldings = allHoldings.filter(h => {
+    if (actionFilter === 'AVERAGE') return h.quantAction?.actionType === 'AVERAGE_DOWN';
+    if (actionFilter === 'HOLD') return h.quantAction?.actionType === 'HOLD_STEADY';
+    if (actionFilter === 'FREEZE') return h.quantAction?.actionType === 'FREEZE_CAPITAL' || h.quantAction?.actionType === 'CUT_LOSS';
+    if (actionFilter === 'PROFIT') return h.quantAction?.actionType === 'KEEP_RUNNING' || h.quantAction?.actionType === 'BOOK_PROFIT';
+    return true;
+  });
 
   return (
     <div className="fade-in-up" style={{ paddingBottom: '3rem' }}>
@@ -737,16 +752,60 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
             </div>
           )}
 
-          {/* Holdings Table with Institutional Quant Badges */}
+          {/* Holdings Table with Institutional Quant Badges & Filter Tabs */}
           <div className="glass-card" style={{ overflow: 'hidden', padding: 0 }}>
-            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
               <div>
                 <h3 style={{ margin: 0 }}>📋 Current Holdings & Real-Time Trade Desk</h3>
-                <span className="text-xs text-muted">Click the strategy tag (💎 CORE / ⚡ SWING) to toggle between Long-Term and Swing mode</span>
+                <span className="text-xs text-muted">Click strategy badge (💎 CORE / ⚡ SWING) to toggle mode. Full institutional prices & actions below.</span>
               </div>
               <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-primary)', fontWeight: 600 }}>
-                {portfolio.holdings.length} Positions Active
+                Showing {filteredHoldings.length} of {allHoldings.length} Holdings
               </span>
+            </div>
+
+            {/* Quick Action Filter Pills */}
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '0.65rem 1.25rem', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-secondary)', alignItems: 'center' }}>
+              <span className="text-xs text-muted" style={{ fontWeight: 600, letterSpacing: '0.04em' }}>FILTER ACTIONS:</span>
+              <button
+                type="button"
+                className={`btn btn-xs ${actionFilter === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setActionFilter('ALL')}
+              >
+                All Positions ({allHoldings.length})
+              </button>
+              <button
+                type="button"
+                className={`btn btn-xs ${actionFilter === 'AVERAGE' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setActionFilter('AVERAGE')}
+                style={{ color: '#34d399', borderColor: actionFilter === 'AVERAGE' ? '#10b981' : 'rgba(52, 211, 153, 0.3)' }}
+              >
+                🛒 Safe to Average ({averageCount})
+              </button>
+              <button
+                type="button"
+                className={`btn btn-xs ${actionFilter === 'HOLD' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setActionFilter('HOLD')}
+                style={{ color: '#38bdf8', borderColor: actionFilter === 'HOLD' ? '#38bdf8' : 'rgba(56, 189, 248, 0.3)' }}
+              >
+                💎 Hold Core ({holdCount})
+              </button>
+              <button
+                type="button"
+                className={`btn btn-xs ${actionFilter === 'FREEZE' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setActionFilter('FREEZE')}
+                style={{ color: '#f87171', borderColor: actionFilter === 'FREEZE' ? '#f87171' : 'rgba(239, 68, 68, 0.3)' }}
+              >
+                ⚠️ Sinking / Freeze Capital ({freezeCount})
+              </button>
+              <button
+                type="button"
+                className={`btn btn-xs ${actionFilter === 'PROFIT' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setActionFilter('PROFIT')}
+                style={{ color: '#10b981', borderColor: actionFilter === 'PROFIT' ? '#10b981' : 'rgba(16, 185, 129, 0.3)' }}
+              >
+                🚀 Super Compounders ({profitCount})
+              </button>
             </div>
 
             <div style={{ overflowX: 'auto' }}>
@@ -763,18 +822,19 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
                     <th>Valuation</th>
                     <th>P&L</th>
                     <th>P&L %</th>
-                    <th>Quant Recommendation</th>
+                    <th style={{ minWidth: '280px' }}>Institutional Recommendation & Action Plan</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {portfolio.holdings.map((h, i) => {
+                  {filteredHoldings.map((h, i) => {
                     const isSwing = (h.strategy || 'LONG_TERM').toUpperCase() === 'SWING';
                     const badge = h.quantAction || {
                       badge: isSwing ? 'HOLD_IN_BASE' : 'CORE_HOLD',
                       label: isSwing ? 'HOLD BASE ⏳' : 'CORE HOLD 💎',
                       variant: 'cyan',
-                      detail: 'Position within normal noise tolerance.',
+                      headline: `Hold Steady — Target ₹${Math.round(h.buyPrice * 1.30)}`,
+                      detail: 'Position within normal noise tolerance. Hold through noise.',
                     };
 
                     const badgeStyle = (badge.badge === 'RIDE_RUNNER' || badge.badge === 'CORE_COMPOUNDER')
@@ -851,20 +911,37 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
                         <td className={h.pnlPercent >= 0 ? 'change-positive' : 'change-negative'} style={{ fontWeight: 700 }}>
                           {h.pnlPercent >= 0 ? '+' : ''}{h.pnlPercent}%
                         </td>
-                        <td>
-                          <div
-                            style={{
-                              ...badgeStyle,
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              textAlign: 'center',
-                              whiteSpace: 'nowrap',
-                            }}
-                            title={badge.detail}
-                          >
-                            {badge.label}
+                        <td style={{ minWidth: '280px', maxWidth: '340px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                              <span
+                                style={{
+                                  ...badgeStyle,
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 800,
+                                  display: 'inline-block',
+                                }}
+                              >
+                                {badge.label}
+                              </span>
+                              {badge.action && (
+                                <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                  {badge.action}
+                                </span>
+                              )}
+                            </div>
+                            {badge.headline && (
+                              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: badge.variant === 'emerald' ? '#34d399' : badge.variant === 'danger' ? '#f87171' : badge.variant === 'success' ? '#10b981' : '#38bdf8' }}>
+                                {badge.headline}
+                              </div>
+                            )}
+                            {badge.detail && (
+                              <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.4, background: 'rgba(255,255,255,0.02)', padding: '5px 8px', borderRadius: '4px', borderLeft: `2px solid ${badge.variant === 'emerald' ? '#10b981' : badge.variant === 'danger' ? '#ef4444' : '#38bdf8'}` }}>
+                                {badge.detail}
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td>
