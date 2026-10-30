@@ -25,6 +25,7 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
   const debounceRef = useRef(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [lastSyncTime, setLastSyncTime] = useState(() => new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
+  const [showGuide, setShowGuide] = useState(() => localStorage.getItem('stocksage_guide_dismissed') !== 'true');
 
   // High-fidelity institutional chime using native Web Audio API
   const playBreakoutChime = () => {
@@ -209,6 +210,83 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
 
   return (
     <div className="fade-in-up">
+
+      {/* ══════ HOW TO USE THIS APP — Beginner's Quick Guide ══════ */}
+      {showGuide && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(6,182,212,0.1) 0%, rgba(99,102,241,0.08) 100%)',
+          border: '1px solid rgba(6,182,212,0.35)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '1.5rem',
+          marginBottom: '1.5rem',
+          position: 'relative',
+        }}>
+          <button
+            onClick={() => { setShowGuide(false); localStorage.setItem('stocksage_guide_dismissed', 'true'); }}
+            style={{ position: 'absolute', top: '0.85rem', right: '0.85rem', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '50%', width: '26px', height: '26px', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            title="Dismiss guide"
+          >✕</button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+            <span style={{ fontSize: '1.4rem' }}>🧭</span>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#ffffff' }}>How to Use StockSage — Your 3-Step Trading Workflow</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.15rem' }}>Follow these steps every morning between 9:15 AM – 10:30 AM IST for best results</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.85rem' }}>
+            {/* Step 1 */}
+            <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid rgba(6,182,212,0.2)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <span style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(6,182,212,0.25)', color: 'var(--accent-cyan)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>1</span>
+                <span style={{ fontWeight: 700, color: 'var(--accent-cyan)', fontSize: '0.88rem' }}>Look at the Breakout Radar below</span>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                Every morning, the app automatically scans <strong style={{color:'#fff'}}>200 NSE stocks</strong> and shows you which ones are breaking out today.
+                Look for cards with a <strong style={{color:'#10b981'}}>🚀 FIRED</strong> or <strong style={{color:'#a855f7'}}>💥 EPISODIC PIVOT</strong> badge — these are your best candidates to trade today.
+              </p>
+            </div>
+
+            {/* Step 2 */}
+            <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid rgba(99,102,241,0.2)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <span style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(99,102,241,0.25)', color: '#a78bfa', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>2</span>
+                <span style={{ fontWeight: 700, color: '#a78bfa', fontSize: '0.88rem' }}>Click a card to get exact buy/sell prices</span>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                Clicking any stock card opens a <strong style={{color:'#fff'}}>detailed view</strong> with three key prices:
+                🟢 <strong style={{color:'#10b981'}}>Buy Zone</strong> (where to enter),
+                🎯 <strong style={{color:'#10b981'}}>Target 1</strong> (where to sell half),
+                🔴 <strong style={{color:'#ef4444'}}>Stop Loss</strong> (where to exit if wrong).
+                These are calculated by the quant algorithm — just follow them.
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <span style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(245,158,11,0.25)', color: '#fbbf24', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>3</span>
+                <span style={{ fontWeight: 700, color: '#fbbf24', fontSize: '0.88rem' }}>Place your order + set GTT stop loss</span>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                On your broker app (Zerodha/Groww/Upstox): Buy at the shown price. Immediately set a <strong style={{color:'#fff'}}>GTT (Good Till Triggered)</strong> order at the Stop Loss price. When the stock hits Target 1, sell half. Move your stop loss up to your buy price — you can't lose now. Let the rest run!
+              </p>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '1rem', padding: '0.6rem 1rem', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+            <span>💡</span>
+            <span><strong style={{color:'#fbbf24'}}>What is Swing Radar V2?</strong> It's a separate section below showing stocks good for <strong style={{color:'#fff'}}>1–3 week trades</strong> (not just today). Same process — click a stock, get buy/sell prices, follow them. Morning Breakout is for today's action; Swing Radar is for multi-day patience trades.</span>
+          </div>
+        </div>
+      )}
+      {!showGuide && (
+        <div style={{ textAlign: 'right', marginBottom: '0.5rem' }}>
+          <button onClick={() => setShowGuide(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '0.72rem', textDecoration: 'underline' }}>Show how-to guide</button>
+        </div>
+      )}
+
       {/* Institutional Terminal Command Header */}
       <div className="command-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
@@ -475,9 +553,17 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
           </div>
         </div>
 
-        <p className="text-muted text-xs" style={{ margin: '0 0 1rem 0' }}>
-          Identifies <strong>Episodic Pivots (EP Runners)</strong> & <strong>Day T-1 Volatility Compression (VCP)</strong> to detect immediate breakout ignition when institutional volume surges past the pivot ceiling. Designed to catch fast +10% to +18% moves early.
-        </p>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', margin: '0 0 1rem 0' }}>
+          <div style={{ flex: '1', minWidth: '220px', background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 'var(--radius-sm)', padding: '0.65rem 0.85rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <strong style={{color:'#10b981'}}>🚀 FIRED (Buy Now)</strong> — The stock has just broken above a resistance level with heavy volume. This is your <strong style={{color:'#fff'}}>immediate entry window</strong>. The price shown is your buy price. Act fast — this window closes within the session.
+          </div>
+          <div style={{ flex: '1', minWidth: '220px', background: 'rgba(168,85,247,0.07)', border: '1px solid rgba(168,85,247,0.2)', borderRadius: 'var(--radius-sm)', padding: '0.65rem 0.85rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <strong style={{color:'#c084fc'}}>💥 EPISODIC PIVOT</strong> — A massive gap-up on huge volume (institutional buying). Similar to FIRED but even stronger. The stock is changing character. These can run +20% to +60%. Click for exact entry/exit prices.
+          </div>
+          <div style={{ flex: '1', minWidth: '220px', background: 'rgba(6,182,212,0.07)', border: '1px solid rgba(6,182,212,0.2)', borderRadius: 'var(--radius-sm)', padding: '0.65rem 0.85rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <strong style={{color:'var(--accent-cyan)'}}>⏳ COILED SPRING (Armed)</strong> — The stock is squeezing tight, about to break. <strong style={{color:'#fff'}}>Do not buy yet.</strong> Watch it — if it fires tomorrow morning or crosses the pivot price with big volume, then enter. Set a price alert on your broker app.
+          </div>
+        </div>
 
         {/* Filter Pills */}
         <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -627,11 +713,25 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
                   </div>
 
                   {/* Playbook Action Guidance */}
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  <div style={{ 
+                    fontSize: '0.73rem', 
+                    color: 'var(--text-secondary)', 
+                    lineHeight: 1.45,
+                    background: 'rgba(0,0,0,0.2)',
+                    padding: '0.5rem 0.65rem',
+                    borderRadius: 'var(--radius-sm)',
+                    borderLeft: `2px solid ${stock.status === 'FIRED' ? 'var(--color-buy)' : stock.status === 'EPISODIC_PIVOT' ? '#a855f7' : 'var(--accent-cyan)'}`,
+                    marginBottom: '0.4rem'
+                  }}>
                     {stock.actionText}
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--accent-cyan)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <span>👆</span>
+                    <span>Click card for exact buy price, stop loss & step-by-step guide</span>
                   </div>
                 </div>
               ))}
+
             </div>
           );
         })()}
@@ -668,7 +768,7 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
 
         {/* Swing Radar */}
         <div className="glass-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <span>🎯 Swing Radar V2</span>
               <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', fontWeight: 600 }}>200 STOCKS</span>
@@ -679,9 +779,14 @@ export default function Dashboard({ onAnalyze, settings, isAIReady, setIsAIReady
               </span>
             )}
           </div>
+          <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <strong style={{color:'#fff'}}>1–3 week trades</strong> (patient, slower than Morning Breakout). These stocks are in strong uptrends with healthy pullbacks. 
+            Click any stock here to get the <strong style={{color:'#10b981'}}>exact buy price, target price, and stop loss</strong>. Best entered over 2–5 days as the price dips to the buy zone.
+          </p>
 
           {/* Market Cap & Velocity Filter Tabs */}
           <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+
             {[
               { id: 'ALL', label: 'All' },
               { id: 'HIGH_VELOCITY', label: '⚡ 10%+ Velocity' },

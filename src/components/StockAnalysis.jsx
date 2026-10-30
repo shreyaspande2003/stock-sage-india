@@ -287,6 +287,97 @@ export default function StockAnalysis({ data: initialData, onBack, settings, isA
         </div>
       </div>
 
+      {/* ═══════ WHAT TO DO RIGHT NOW — Plain English Action Guide ═══════ */}
+      {(() => {
+        const qc = data.quantConsensus;
+        const exec = qc?.executionLevels || {};
+        const verdict = (qc?.overallVerdict || '').toUpperCase();
+        const isBuy = verdict.includes('BUY') || verdict.includes('ACCUMULATE');
+        const isSell = verdict.includes('SELL') || verdict.includes('REDUCE') || verdict.includes('AVOID');
+        const isHold = verdict.includes('HOLD') || verdict.includes('WAIT') || verdict.includes('NEUTRAL');
+
+        const accentColor = isBuy ? '#10b981' : isSell ? '#ef4444' : '#f59e0b';
+        const bgColor = isBuy ? 'rgba(16,185,129,0.08)' : isSell ? 'rgba(239,68,68,0.06)' : 'rgba(245,158,11,0.06)';
+        const borderColor = isBuy ? 'rgba(16,185,129,0.35)' : isSell ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)';
+
+        const buyPrice = exec.entryZone || (exec.entryPrice ? `₹${exec.entryPrice}` : null);
+        const target1 = exec.target1 ? `₹${exec.target1}` : null;
+        const stopLoss = exec.stopLoss ? `₹${exec.stopLoss}` : null;
+        const rr = exec.riskRewardRatio || '2.5:1';
+
+        const steps = isBuy ? [
+          { num: '1', color: '#10b981', title: `Buy between ${buyPrice || 'current price'}`, desc: `Open your broker app (Zerodha/Groww/Upstox). Place a CNC (delivery) buy order at market price or use a limit order near ${buyPrice || 'the entry zone'}. Do NOT buy if the price is more than 3% above this level.` },
+          { num: '2', color: '#ef4444', title: `Immediately set GTT Stop Loss at ${stopLoss || 'the stop price'}`, desc: `Right after buying, set a GTT (Good Till Triggered) sell order at ${stopLoss || 'the stop loss price'}. This is your safety net. Risk is capped at ${exec.riskPct || '~3.5%'}. Never skip this step.` },
+          { num: '3', color: '#fbbf24', title: `When price hits ${target1 || 'Target 1'} — sell HALF`, desc: `Sell 50% of your shares at ${target1 || 'Target 1'}. This locks in profit. Then move your stop loss UP to your original buy price. Now you literally cannot lose money on this trade.` },
+          { num: '4', color: '#a78bfa', title: 'Let the other half run (trail it)', desc: `Keep the remaining 50% with a trailing stop below the 10-day EMA line. Only exit when the price closes below that line on a daily candle. This is how you catch the big +20%–+80% moves.` },
+        ] : isSell ? [
+          { num: '1', color: '#ef4444', title: 'Do NOT enter this stock right now', desc: `The quant system rates this as ${qc?.overallVerdict?.replace(/_/g, ' ') || 'SELL/AVOID'}. If you already hold it, consider reducing your position size or exiting at the next resistance level.` },
+          { num: '2', color: '#f59e0b', title: 'Wait for conditions to improve', desc: 'Add this to your watchlist. Come back in 1–2 weeks. The setup may improve as the stock consolidates or finds support.' },
+          { num: '3', color: '#94a3b8', title: 'Focus on other opportunities', desc: 'Return to the Morning Breakout Radar and Swing Radar for better-rated setups with positive momentum.' },
+        ] : [
+          { num: '1', color: '#f59e0b', title: 'Hold / Wait — not the right time to enter', desc: `The system shows HOLD/NEUTRAL. If you already own this stock, hold your position. If you don't own it yet, wait for a clearer breakout signal before entering.` },
+          { num: '2', color: '#94a3b8', title: `Watch the key level: ${buyPrice || 'entry zone'}`, desc: `Set a price alert in your broker app at ${buyPrice || 'the breakout level'}. If the stock crosses this with heavy volume, that's your entry signal.` },
+          { num: '3', color: '#10b981', title: 'Check back tomorrow morning', desc: 'Market conditions can change overnight. Refresh the app at 9:15 AM to see if a stronger signal has emerged.' },
+        ];
+
+        return (
+          <div style={{
+            marginBottom: '1.5rem',
+            background: bgColor,
+            border: `1px solid ${borderColor}`,
+            borderRadius: 'var(--radius-lg)',
+            padding: '1.5rem',
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${accentColor}, var(--accent-cyan))` }} />
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.1rem' }}>
+              <span style={{ fontSize: '1.3rem' }}>{isBuy ? '✅' : isSell ? '🚫' : '⏸️'}</span>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#ffffff' }}>
+                  What To Do Right Now — Plain English Guide
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: '0.1rem' }}>
+                  Step-by-step actions for <strong style={{color:'#fff'}}>{quote?.name || data.symbol}</strong> based on today's quant analysis
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.75rem', marginBottom: isBuy && buyPrice ? '1rem' : 0 }}>
+              {steps.map(step => (
+                <div key={step.num} style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 'var(--radius-md)', padding: '0.9rem', border: `1px solid ${step.color}30` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.45rem' }}>
+                    <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: `${step.color}25`, color: step.color, fontSize: '0.72rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>{step.num}</span>
+                    <span style={{ fontWeight: 700, color: step.color, fontSize: '0.82rem' }}>{step.title}</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{step.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            {isBuy && buyPrice && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', background: 'rgba(0,0,0,0.3)', padding: '0.85rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.2rem' }}>🟢 Buy Here</div>
+                  <div style={{ fontWeight: 800, fontSize: '1.1rem', color: '#ffffff', fontFamily: 'monospace' }}>{buyPrice}</div>
+                </div>
+                <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.07)', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--color-buy)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.2rem' }}>🎯 Target 1 (Sell 50%)</div>
+                  <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--color-buy)', fontFamily: 'monospace' }}>{target1 || '—'}</div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>{exec.target1Return || ''}</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--color-sell)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.2rem' }}>🔴 Stop Loss (GTT)</div>
+                  <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--color-sell)', fontFamily: 'monospace' }}>{stopLoss || '—'}</div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>R:R = {rr}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* ═══════ INSTITUTIONAL QUANT CONSENSUS MASTER CARD (100% PURE ALGO) ═══════ */}
       {(() => {
         const qc = data.quantConsensus || {

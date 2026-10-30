@@ -542,8 +542,203 @@ export default function PortfolioManager({ settings, isAIReady, onAnalyze }) {
       {/* Portfolio Main View */}
       {portfolio && portfolio.holdings && portfolio.holdings.length > 0 ? (
         <div>
+
+          {/* ═══ ACTIVE SWING TRADE PLAYBOOK — Live Phase Tracker ═══ */}
+          {(() => {
+            const swingHoldings = portfolio.holdings.filter(h => (h.strategy || 'LONG_TERM').toUpperCase() === 'SWING');
+            if (swingHoldings.length === 0) return null;
+
+            return (
+              <div style={{
+                marginBottom: '1.5rem',
+                background: 'linear-gradient(180deg, rgba(99,102,241,0.08) 0%, rgba(15,23,42,0.8) 100%)',
+                border: '1px solid rgba(99,102,241,0.35)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '1.5rem',
+                position: 'relative',
+                overflow: 'hidden',
+              }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #6366f1, #10b981, #f59e0b)' }} />
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.1rem' }}>
+                  <span style={{ fontSize: '1.3rem' }}>🎮</span>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#ffffff' }}>Active Swing Trade Playbook — Live Phase Tracker</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: '0.1rem' }}>
+                      Real-time status of each swing trade. Shows exactly where you are in the 4-phase exit plan and what to do next.
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1rem' }}>
+                  {swingHoldings.map((h, idx) => {
+                    const buyPrice = h.buyPrice || 0;
+                    const currentPrice = h.currentPrice || buyPrice;
+                    const pnlPct = h.pnlPercent || ((currentPrice - buyPrice) / buyPrice * 100);
+
+                    // Compute key price levels
+                    // Target 1 = +10% from buy, Stop loss = approx -5.5% from buy
+                    const target1 = h.targetPrice || Math.round(buyPrice * 1.10 * 100) / 100;
+                    const hardStop = h.stopLossPrice || Math.round(buyPrice * 0.945 * 100) / 100;
+                    // 10 EMA estimated: use technicals if available, else approximate as -2% from current
+                    const ema10 = h.ema10 || Math.round(currentPrice * 0.98 * 100) / 100;
+                    const ema21 = h.ema21 || Math.round(currentPrice * 0.955 * 100) / 100;
+
+                    // Determine which phase we're in
+                    let phase, phaseNum, phaseColor, phaseBg, phaseBorder, phaseTitle, phaseDesc, currentStop, stopAction, exitNote;
+
+                    if (pnlPct < -1 && currentPrice < hardStop * 1.01) {
+                      // Near or below stop loss
+                      phase = 'STOP_HIT';
+                      phaseNum = '!';
+                      phaseColor = '#ef4444';
+                      phaseBg = 'rgba(239,68,68,0.1)';
+                      phaseBorder = 'rgba(239,68,68,0.4)';
+                      phaseTitle = '🔴 STOP LOSS ZONE — Exit Now';
+                      phaseDesc = `Price is at/below your stop loss of ₹${hardStop}. The trade is invalidated. Exit the full position to protect capital.`;
+                      currentStop = `₹${hardStop} (ORIGINAL — EXIT NOW)`;
+                      stopAction = `Sell ALL ${h.quantity} shares immediately at market price. Do not wait.`;
+                      exitNote = `Loss capped at ${Math.abs(pnlPct).toFixed(1)}%. This is normal — not every trade works. Protect capital for the next setup.`;
+                    } else if (pnlPct < 10) {
+                      // Phase 1: Still in trade, original hard stop active
+                      phase = 'PHASE_1';
+                      phaseNum = '1';
+                      phaseColor = '#06b6d4';
+                      phaseBg = 'rgba(6,182,212,0.06)';
+                      phaseBorder = 'rgba(6,182,212,0.3)';
+                      phaseTitle = '⏳ Phase 1 — Riding to Target 1';
+                      phaseDesc = `Trade is active. Waiting for price to reach Target 1 of ₹${target1} (+10%). Your original hard stop is still active.`;
+                      currentStop = `₹${hardStop} (HARD STOP — keep your GTT set here)`;
+                      stopAction = `Do nothing. Your GTT stop order at ₹${hardStop} protects you. Wait patiently for ₹${target1}.`;
+                      exitNote = `Still ${(((target1 - currentPrice) / currentPrice) * 100).toFixed(1)}% away from Target 1. If price closes a full daily candle below ₹${hardStop}, exit.`;
+                    } else if (pnlPct >= 10 && pnlPct < 18) {
+                      // Phase 2: Target 1 has been hit — user should have sold 50%
+                      phase = 'PHASE_2';
+                      phaseNum = '2';
+                      phaseColor = '#10b981';
+                      phaseBg = 'rgba(16,185,129,0.08)';
+                      phaseBorder = 'rgba(16,185,129,0.4)';
+                      phaseTitle = '🎯 Phase 2 — Target 1 HIT! Take Action Now';
+                      phaseDesc = `Price has reached +${pnlPct.toFixed(1)}% — you've hit Target 1 zone (₹${target1}). Sell half your shares NOW. Then move your stop loss up to your buy price.`;
+                      currentStop = `₹${buyPrice} (MOVE STOP TO BREAKEVEN)`;
+                      stopAction = `Action 1: Sell ${Math.floor(h.quantity / 2)} shares (50%) at market. Action 2: Update your GTT order from ₹${hardStop} → ₹${buyPrice}. You now have zero risk on the trade.`;
+                      exitNote = `After selling half, remaining ${Math.ceil(h.quantity / 2)} shares ride for free. Stop is at cost so you cannot lose.`;
+                    } else if (pnlPct >= 18) {
+                      // Phase 3/4: Super runner — trail on 10 EMA
+                      phase = 'PHASE_3';
+                      phaseNum = '3';
+                      phaseColor = '#a855f7';
+                      phaseBg = 'rgba(168,85,247,0.08)';
+                      phaseBorder = 'rgba(168,85,247,0.4)';
+                      phaseTitle = `🚀 Phase 3/4 — Super Runner! Trail on 10 EMA`;
+                      phaseDesc = `Exceptional move of +${pnlPct.toFixed(1)}%! If you've sold 50% at T1 — great. Now let the rest ride using the 10-day EMA as a trailing stop.`;
+                      currentStop = `₹${ema10} (10-DAY EMA — UPDATE DAILY)`;
+                      stopAction = `Only exit remaining shares when the stock CLOSES below ₹${ema10} on a daily candle. Check this every evening. If above EMA — hold.`;
+                      exitNote = `Current 10 EMA ≈ ₹${ema10}. Stock is ${((currentPrice - ema10) / ema10 * 100).toFixed(1)}% above trailing stop. Do NOT exit on intra-day dips below EMA — only daily closing price matters.`;
+                    }
+
+                    const isAtRisk = phase === 'STOP_HIT';
+                    const isActionable = phase === 'PHASE_2';
+
+                    return (
+                      <div key={idx} style={{
+                        background: phaseBg,
+                        border: `1px solid ${phaseBorder}`,
+                        borderRadius: 'var(--radius-md)',
+                        padding: '1.1rem',
+                        position: 'relative',
+                      }}>
+                        {isAtRisk && (
+                          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: '#ef4444', animation: 'pulse 1s infinite' }} />
+                        )}
+                        {isActionable && (
+                          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #10b981, #fbbf24)' }} />
+                        )}
+
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: `${phaseColor}22`, color: phaseColor, fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, border: `1px solid ${phaseColor}55` }}>{phaseNum}</span>
+                              <span style={{ fontWeight: 800, fontSize: '1rem', color: '#ffffff' }}>{h.symbol}</span>
+                              <span style={{ fontSize: '0.68rem', background: 'rgba(99,102,241,0.2)', color: '#a78bfa', padding: '1px 6px', borderRadius: '3px', fontWeight: 700 }}>⚡ SWING</span>
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: '0.2rem' }}>
+                              Bought @ ₹{buyPrice} × {h.quantity} shares
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: 800, fontSize: '1.05rem', color: pnlPct >= 0 ? 'var(--color-buy)' : 'var(--color-sell)' }}>
+                              {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>₹{currentPrice}</div>
+                          </div>
+                        </div>
+
+                        {/* Phase Title */}
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: phaseColor, marginBottom: '0.4rem' }}>{phaseTitle}</div>
+                        <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{phaseDesc}</p>
+
+                        {/* Current Stop Level */}
+                        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 'var(--radius-sm)', padding: '0.6rem 0.75rem', marginBottom: '0.6rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.15rem' }}>
+                            🎯 Your Stop Loss RIGHT NOW should be:
+                          </div>
+                          <div style={{ fontWeight: 800, fontSize: '0.95rem', color: phase === 'STOP_HIT' ? '#ef4444' : phase === 'PHASE_3' ? '#a855f7' : 'var(--accent-cyan)', fontFamily: 'monospace' }}>
+                            {currentStop}
+                          </div>
+                        </div>
+
+                        {/* What to do */}
+                        <div style={{ background: isActionable ? 'rgba(16,185,129,0.08)' : isAtRisk ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.02)', border: `1px solid ${isActionable ? 'rgba(16,185,129,0.3)' : isAtRisk ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.06)'}`, borderRadius: 'var(--radius-sm)', padding: '0.6rem 0.75rem', marginBottom: '0.5rem' }}>
+                          <div style={{ fontSize: '0.65rem', color: isActionable ? '#10b981' : isAtRisk ? '#ef4444' : 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.15rem' }}>
+                            ✅ What to do right now:
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: 600, lineHeight: 1.45 }}>{stopAction}</div>
+                        </div>
+
+                        {/* Exit note */}
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', lineHeight: 1.45, fontStyle: 'italic' }}>
+                          💡 {exitNote}
+                        </div>
+
+                        {/* Progress bar: buy → target1 */}
+                        {phase !== 'STOP_HIT' && (
+                          <div style={{ marginTop: '0.75rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>
+                              <span>₹{buyPrice} (Entry)</span>
+                              <span style={{ color: phaseColor }}>{pnlPct.toFixed(1)}% gain</span>
+                              <span style={{ color: 'var(--color-buy)' }}>₹{target1} (T1)</span>
+                            </div>
+                            <div style={{ height: '5px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{
+                                height: '100%',
+                                width: `${Math.min(100, Math.max(0, pnlPct / 10 * 100))}%`,
+                                background: pnlPct >= 10 ? 'linear-gradient(90deg, #10b981, #a855f7)' : `linear-gradient(90deg, ${phaseColor}, ${phaseColor}88)`,
+                                borderRadius: '3px',
+                                transition: 'width 0.5s ease',
+                              }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ marginTop: '1rem', padding: '0.6rem 1rem', background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 'var(--radius-sm)', fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'flex', gap: '0.5rem' }}>
+                  <span>💡</span>
+                  <span>
+                    <strong style={{color:'#fbbf24'}}>How to check the 10 EMA daily:</strong> Open the stock on Zerodha Kite or TradingView. Switch to Daily chart. Add indicator "EMA 10". Every evening before 4 PM, check if the closing price is above or below the EMA line. If it closes below — exit next morning at open. If above — hold.
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Summary Metric Cards */}
           <div className="portfolio-summary-grid">
+
             <div className="portfolio-stat-card">
               <div className="portfolio-stat-label">Total Capital Invested</div>
               <div className="portfolio-stat-value">{formatPrice(portfolio.summary.totalInvested)}</div>
